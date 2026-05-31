@@ -1,21 +1,11 @@
 # src/rhosocial/stateflow/dispatcher.py
 """Event dispatchers for stateflow."""
 
-from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence
 
-from .exceptions import DuplicateEventError, InvalidStateTransitionError
+from .exceptions import InvalidStateTransitionError
 from .models import Order, OrderEvent, OrderOutbox, OrderSubProcess, SubProcessDependency
-from .types import (
-    EVENT_CONFLICT,
-    EVENT_ORDER_COMPLETED,
-    EVENT_SP_STARTED,
-    EVENT_SP_STATUS_CHANGED,
-    EVENT_SP_TIMEOUT,
-    ORDER_STATUS_COMPLETED,
-    OUTBOX_TOPIC_HANDLER_START,
-    SUBPROCESS_STATUS_RUNNING,
-)
+from .types import EVENT_SP_TIMEOUT, SUBPROCESS_STATUS_PENDING
 
 
 class DispatchResult:
@@ -51,76 +41,55 @@ class SyncOrderDispatcher:
     ) -> DispatchResult:
         """Apply one event, enforce idempotency, and enqueue downstream side effects."""
         events = list(events or [])
-        if event_key:
-            existing = self._find_event_by_key(events, event_key)
-            if existing:
-                return DispatchResult(existing, duplicate=True)
+        existing = OrderEvent.find_by_event_key(events, event_key)
+        if existing:
+            return DispatchResult(existing, duplicate=True)
 
-        if subprocess.skipped:
+        if not subprocess.can_receive_event():
             raise InvalidStateTransitionError("Skipped subprocess cannot receive events")
 
-        if self._is_terminal(subprocess.status, subprocess):
+        if subprocess.is_terminal():
             if subprocess.status == new_status:
-                event = OrderEvent(
-                    order_id=order.id,
-                    subprocess_id=subprocess.id,
-                    event_type=EVENT_SP_STATUS_CHANGED,
-                    from_status=subprocess.status,
-                    to_status=new_status,
-                    payload=payload or {},
-                    event_key=event_key,
+                event = OrderEvent.status_changed(
+                    order,
+                    subprocess,
+                    subprocess.status,
+                    new_status,
+                    payload,
+                    event_key,
                 )
                 return DispatchResult(event)
-            conflict_event = OrderEvent(
-                order_id=order.id,
-                subprocess_id=subprocess.id,
-                event_type=EVENT_CONFLICT,
-                from_status=subprocess.status,
-                to_status=new_status,
-                payload=payload or {},
-                event_key=event_key,
-                conflict=True,
+            conflict_event = OrderEvent.conflict_event(
+                order,
+                subprocess,
+                new_status,
+                payload,
+                event_key,
             )
             return DispatchResult(conflict_event)
 
-        previous_status = subprocess.status
-        subprocess.status = new_status
-        if self._is_terminal(new_status, subprocess):
-            subprocess.completed_at = datetime.now(timezone.utc)
-
-        event = OrderEvent(
-            order_id=order.id,
-            subprocess_id=subprocess.id,
-            event_type=EVENT_SP_STATUS_CHANGED,
-            from_status=previous_status,
-            to_status=new_status,
-            payload=payload or {},
-            event_key=event_key,
+        previous_status = subprocess.apply_status(new_status)
+        event = OrderEvent.status_changed(
+            order,
+            subprocess,
+            previous_status,
+            new_status,
+            payload,
+            event_key,
         )
 
         started = []
         outbox_items = []
-        if new_status in subprocess.advance_states:
+        if subprocess.is_advance_status(new_status):
             started = self._start_ready_subprocesses(subprocesses, dependencies)
             outbox_items = [
-                OrderOutbox(
-                    event_id=event.id,
-                    topic=OUTBOX_TOPIC_HANDLER_START,
-                    payload={"subprocess_id": str(started_subprocess.id)},
-                )
+                OrderOutbox.handler_start(event, started_subprocess)
                 for started_subprocess in started
             ]
 
-        if self._all_completed(subprocesses):
-            order.status = ORDER_STATUS_COMPLETED
-            order.completed_at = datetime.now(timezone.utc)
-            events.append(
-                OrderEvent(
-                    order_id=order.id,
-                    event_type=EVENT_ORDER_COMPLETED,
-                    to_status=ORDER_STATUS_COMPLETED,
-                )
-            )
+        if order.all_subprocesses_completed(subprocesses):
+            order.mark_completed()
+            events.append(OrderEvent.order_completed(order))
 
         return DispatchResult(event, started_subprocesses=started, outbox_items=outbox_items)
 
@@ -146,53 +115,28 @@ class SyncOrderDispatcher:
             payload={"event_type": EVENT_SP_TIMEOUT},
         )
 
-    def _find_event_by_key(
-        self,
-        events: Sequence[OrderEvent],
-        event_key: str,
-    ) -> Optional[OrderEvent]:
-        for event in events:
-            if event.event_key == event_key:
-                return event
-        return None
-
-    def _is_terminal(self, status: str, subprocess: OrderSubProcess) -> bool:
-        return status in subprocess.terminal_states
-
     def _start_ready_subprocesses(
         self,
         subprocesses: Sequence[OrderSubProcess],
         dependencies: Sequence[SubProcessDependency],
     ) -> List[OrderSubProcess]:
         subprocess_by_id = {subprocess.id: subprocess for subprocess in subprocesses}
-        dependencies_by_subprocess: Dict[object, List[SubProcessDependency]] = {}
-        for dependency in dependencies:
-            dependencies_by_subprocess.setdefault(dependency.subprocess_id, []).append(dependency)
+        dependencies_by_subprocess = SubProcessDependency.group_by_subprocess(dependencies)
 
         started = []
         for candidate in subprocesses:
-            if candidate.skipped or candidate.status != "pending":
+            if candidate.skipped or candidate.status != SUBPROCESS_STATUS_PENDING:
                 continue
             candidate_dependencies = dependencies_by_subprocess.get(candidate.id, [])
             if not candidate_dependencies:
                 continue
             if all(
-                self._dependency_satisfied(subprocess_by_id[dependency.depends_on_id])
+                subprocess_by_id[dependency.depends_on_id].dependency_satisfied()
                 for dependency in candidate_dependencies
             ):
-                candidate.status = SUBPROCESS_STATUS_RUNNING
-                candidate.started_at = datetime.now(timezone.utc)
+                candidate.mark_running()
                 started.append(candidate)
         return started
-
-    def _dependency_satisfied(self, subprocess: OrderSubProcess) -> bool:
-        return subprocess.skipped or subprocess.status in subprocess.advance_states
-
-    def _all_completed(self, subprocesses: Sequence[OrderSubProcess]) -> bool:
-        active_subprocesses = [subprocess for subprocess in subprocesses if not subprocess.skipped]
-        return bool(active_subprocesses) and all(
-            subprocess.status in subprocess.advance_states for subprocess in active_subprocesses
-        )
 
 
 class AsyncOrderDispatcher:

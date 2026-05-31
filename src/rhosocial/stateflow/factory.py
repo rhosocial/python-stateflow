@@ -1,7 +1,6 @@
 # src/rhosocial/stateflow/factory.py
 """Factories for stateflow order instances."""
 
-import uuid
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
@@ -17,13 +16,7 @@ from .models import (
     SubProcessDependency,
 )
 from .types import (
-    EVENT_ORDER_CREATED,
-    EVENT_SP_CREATED,
-    EVENT_SP_SKIPPED,
     ORDER_STATUS_PENDING,
-    SUBPROCESS_SOURCE_DYNAMIC,
-    SUBPROCESS_SOURCE_TEMPLATE,
-    SUBPROCESS_STATUS_PENDING,
 )
 from .validators import OrderTemplateValidator
 
@@ -67,16 +60,16 @@ class SyncOrderFactory:
             messages = "; ".join(issue.message for issue in validation.issues)
             raise TemplateValidationError(messages)
 
-        ordered_steps = sorted(steps, key=lambda step: step.step_order)
+        ordered_steps = template.ordered_steps(steps)
         skipped_names = set(skip_steps or [])
         if start_from:
-            skipped_names.update(self._steps_before(ordered_steps, start_from))
+            skipped_names.update(template.steps_before(ordered_steps, start_from))
 
         order = Order(template_id=template.id, status=ORDER_STATUS_PENDING, context=context or {})
-        process = OrderProcess(order_id=order.id, template_snapshot=self._snapshot(template, ordered_steps))
+        process = OrderProcess.from_template(order, template, ordered_steps)
         subprocesses = self._build_subprocesses(process.id, ordered_steps, skipped_names)
         dependencies = self._build_dependencies(process.id, ordered_steps, subprocesses, skipped_names)
-        events = self._build_initial_events(order.id, subprocesses)
+        events = self._build_initial_events(order, subprocesses)
         return OrderInstance(
             order=order,
             process=process,
@@ -108,83 +101,40 @@ class SyncOrderFactory:
         if name in dependency_names:
             raise TemplateValidationError("A subprocess cannot depend on itself")
 
-        sequence = max((subprocess.sequence for subprocess in existing_subprocesses), default=-1) + 1
-        return OrderSubProcess(
-            process_id=process.id,
-            step_name=name,
-            status=SUBPROCESS_STATUS_PENDING,
+        return OrderSubProcess.dynamic(
+            process,
+            existing_subprocesses,
+            name=name,
             handler_class=handler_class,
-            terminal_states=list(terminal_states),
-            advance_states=list(advance_states),
-            rollback_states=list(rollback_states or []),
+            terminal_states=terminal_states,
+            advance_states=advance_states,
+            rollback_states=rollback_states,
             timeout_seconds=timeout_seconds,
             timeout_status=timeout_status,
-            source=SUBPROCESS_SOURCE_DYNAMIC,
-            sequence=sequence,
             is_reversible=is_reversible,
         )
 
-    def _steps_before(self, steps: Sequence[OrderTemplateStep], start_from: str) -> Set[str]:
-        before: Set[str] = set()
-        for step in steps:
-            if step.name == start_from:
-                return before
-            before.add(step.name)
-        raise TemplateValidationError(f"Unknown start_from step: {start_from}")
-
-    def _snapshot(self, template: OrderTemplate, steps: Sequence[OrderTemplateStep]) -> Dict:
-        return {
-            "template": {
-                "id": str(template.id),
-                "name": template.name,
-                "version": template.version,
-                "status": template.status,
-            },
-            "steps": [
-                {
-                    "name": step.name,
-                    "handler_class": step.handler_class,
-                    "terminal_states": list(step.terminal_states),
-                    "advance_states": list(step.advance_states),
-                    "rollback_states": list(step.rollback_states),
-                    "timeout_seconds": step.timeout_seconds,
-                    "timeout_status": step.timeout_status,
-                    "depends_on": list(step.depends_on),
-                    "step_order": step.step_order,
-                }
-                for step in steps
-            ],
-        }
-
     def _build_subprocesses(
         self,
-        process_id: uuid.UUID,
+        process_id: object,
         steps: Sequence[OrderTemplateStep],
         skipped_names: Set[str],
     ) -> List[OrderSubProcess]:
         subprocesses: List[OrderSubProcess] = []
         for sequence, step in enumerate(steps):
             subprocesses.append(
-                OrderSubProcess(
-                    process_id=process_id,
-                    step_name=step.name,
-                    status=SUBPROCESS_STATUS_PENDING,
-                    handler_class=step.handler_class,
-                    terminal_states=list(step.terminal_states),
-                    advance_states=list(step.advance_states),
-                    rollback_states=list(step.rollback_states),
-                    timeout_seconds=step.timeout_seconds,
-                    timeout_status=step.timeout_status,
-                    skipped=step.name in skipped_names,
-                    source=SUBPROCESS_SOURCE_TEMPLATE,
-                    sequence=sequence,
+                OrderSubProcess.from_template_step(
+                    process_id,
+                    step,
+                    step.name in skipped_names,
+                    sequence,
                 )
             )
         return subprocesses
 
     def _build_dependencies(
         self,
-        process_id: uuid.UUID,
+        process_id: object,
         steps: Sequence[OrderTemplateStep],
         subprocesses: Sequence[OrderSubProcess],
         skipped_names: Set[str],
@@ -197,10 +147,10 @@ class SyncOrderFactory:
                 continue
             for dependency_name in self._expanded_dependencies(step.name, step_by_name, skipped_names):
                 dependencies.append(
-                    SubProcessDependency(
-                        process_id=process_id,
-                        subprocess_id=subprocess_by_name[step.name].id,
-                        depends_on_id=subprocess_by_name[dependency_name].id,
+                    SubProcessDependency.for_subprocess(
+                        process_id,
+                        subprocess_by_name[step.name],
+                        subprocess_by_name[dependency_name],
                     )
                 )
         return dependencies
@@ -221,20 +171,15 @@ class SyncOrderFactory:
 
     def _build_initial_events(
         self,
-        order_id: uuid.UUID,
+        order: Order,
         subprocesses: Sequence[OrderSubProcess],
     ) -> List[OrderEvent]:
-        events = [OrderEvent(order_id=order_id, event_type=EVENT_ORDER_CREATED)]
+        events = [OrderEvent.order_created(order)]
         for subprocess in subprocesses:
-            events.append(
-                OrderEvent(
-                    order_id=order_id,
-                    subprocess_id=subprocess.id,
-                    event_type=EVENT_SP_SKIPPED if subprocess.skipped else EVENT_SP_CREATED,
-                    to_status=subprocess.status,
-                    payload={"step_name": subprocess.step_name},
-                )
-            )
+            if subprocess.skipped:
+                events.append(OrderEvent.subprocess_skipped(order, subprocess))
+            else:
+                events.append(OrderEvent.subprocess_created(order, subprocess))
         return events
 
 

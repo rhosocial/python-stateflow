@@ -47,11 +47,7 @@ class OrderTemplateValidator:
         result: ValidationResult,
     ) -> None:
         for index, step in enumerate(steps):
-            terminal_states = set(step.terminal_states)
-            advance_states = set(step.advance_states)
-            rollback_states = set(step.rollback_states)
-
-            missing_advance = advance_states - terminal_states
+            missing_advance = step.missing_advance_states()
             if missing_advance:
                 result.add(
                     "advance_state_not_terminal",
@@ -59,7 +55,7 @@ class OrderTemplateValidator:
                     f"steps[{index}].advance_states",
                 )
 
-            missing_rollback = rollback_states - terminal_states
+            missing_rollback = step.missing_rollback_states()
             if missing_rollback:
                 result.add(
                     "rollback_state_not_terminal",
@@ -67,14 +63,14 @@ class OrderTemplateValidator:
                     f"steps[{index}].rollback_states",
                 )
 
-            if step.timeout_seconds is not None and not step.timeout_status:
+            if step.requires_timeout_status():
                 result.add(
                     "timeout_status_required",
                     "timeout_status is required when timeout_seconds is configured",
                     f"steps[{index}].timeout_status",
                 )
 
-            if step.timeout_status and step.timeout_status not in terminal_states:
+            if not step.has_terminal_timeout_status():
                 result.add(
                     "timeout_status_not_terminal",
                     "timeout_status must be a terminal state",
@@ -134,17 +130,17 @@ class OrderTemplateValidator:
         result: ValidationResult,
     ) -> None:
         for index, flow_path in enumerate(flow_paths):
-            if flow_path.start_from and flow_path.start_from not in step_by_name:
+            step_names = set(step_by_name)
+            if flow_path.has_unknown_start_from(step_names):
                 result.add(
                     "unknown_start_from",
                     f"Unknown start_from step: {flow_path.start_from}",
                     f"flow_paths[{index}].start_from",
                 )
 
-            for skipped_step in flow_path.skip_steps:
-                if skipped_step not in step_by_name:
-                    result.add(
-                        "unknown_skip_step",
-                        f"Unknown skipped step: {skipped_step}",
-                        f"flow_paths[{index}].skip_steps",
-                    )
+            for skipped_step in flow_path.unknown_skip_steps(step_names):
+                result.add(
+                    "unknown_skip_step",
+                    f"Unknown skipped step: {skipped_step}",
+                    f"flow_paths[{index}].skip_steps",
+                )
