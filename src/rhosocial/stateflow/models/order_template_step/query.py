@@ -23,7 +23,7 @@ class OrderTemplateStepQuery:
 
     @classmethod
     def with_timeout(cls, template_id=None):
-        query = cls.model.query().where(cls.model.c.timeout_seconds != None)
+        query = cls.model.query().where(cls.model.c.timeout_seconds != None)  # noqa: E711
         if template_id is not None:
             query = query.where(cls.model.c.template_id == template_id)
         return query

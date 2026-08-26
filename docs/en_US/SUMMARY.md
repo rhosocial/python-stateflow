@@ -1,4 +1,4 @@
-# Summary
+# Table of Contents
 
 - [rhosocial-stateflow](README.md)
 - [Introduction](introduction/README.md)

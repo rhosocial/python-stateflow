@@ -43,14 +43,14 @@ class OrderSubProcessQuery:
 
     @classmethod
     def not_skipped(cls, process_id=None):
-        query = cls.model.query().where(cls.model.c.skipped == False)
+        query = cls.model.query().where(cls.model.c.skipped == False)  # noqa: E712
         if process_id is not None:
             query = query.where(cls.model.c.process_id == process_id)
         return query
 
     @classmethod
     def skipped(cls, process_id=None):
-        query = cls.model.query().where(cls.model.c.skipped == True)
+        query = cls.model.query().where(cls.model.c.skipped == True)  # noqa: E712
         if process_id is not None:
             query = query.where(cls.model.c.process_id == process_id)
         return query
@@ -69,7 +69,7 @@ class OrderSubProcessQuery:
 
     @classmethod
     def with_timeout(cls, process_id=None):
-        query = cls.model.query().where(cls.model.c.timeout_seconds != None)
+        query = cls.model.query().where(cls.model.c.timeout_seconds != None)  # noqa: E711
         if process_id is not None:
             query = query.where(cls.model.c.process_id == process_id)
         return query

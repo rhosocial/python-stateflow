@@ -1,7 +1,7 @@
 # src/rhosocial/stateflow/models/order_process/__init__.py
-"""Exports for OrderProcess."""
+"""Exports for OrderProcess and its async sibling."""
 
-from .model import OrderProcess
+from .model import AsyncOrderProcess, OrderProcess
 from .query import OrderProcessQuery
 
-__all__ = ["OrderProcess", "OrderProcessQuery"]
+__all__ = ["AsyncOrderProcess", "OrderProcess", "OrderProcessQuery"]

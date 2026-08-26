@@ -32,7 +32,7 @@ class OrderQuery:
 
     @classmethod
     def started(cls):
-        return cls.model.query().where(cls.model.c.started_at != None)
+        return cls.model.query().where(cls.model.c.started_at != None)  # noqa: E711
 
     @classmethod
     def completed_after(cls, moment):

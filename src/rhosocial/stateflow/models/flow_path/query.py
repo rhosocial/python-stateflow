@@ -19,7 +19,7 @@ class FlowPathQuery:
 
     @classmethod
     def with_start_from(cls, template_id=None):
-        query = cls.model.query().where(cls.model.c.start_from != None)
+        query = cls.model.query().where(cls.model.c.start_from != None)  # noqa: E711
         if template_id is not None:
             query = query.where(cls.model.c.template_id == template_id)
         return query

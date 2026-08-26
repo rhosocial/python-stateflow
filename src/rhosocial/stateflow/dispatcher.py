@@ -1,10 +1,26 @@
 # src/rhosocial/stateflow/dispatcher.py
-"""Event dispatchers for stateflow."""
+"""Event dispatchers for stateflow.
 
-from typing import Dict, List, Optional, Sequence
+The dispatcher is a **stateless** state machine: it advances in-memory model
+instances and yields new events/outbox items, performing no I/O. Sync and
+async dispatchers share the same pure logic via :class:`_DispatcherBase`;
+they differ only in which model classes the factory methods target
+(``OrderEvent`` vs ``AsyncOrderEvent``, ``OrderOutbox`` vs ``AsyncOrderOutbox``)
+so that the produced objects match the caller's sync/async path.
+"""
+
+from typing import Any, ClassVar, Dict, List, Optional, Sequence
 
 from .exceptions import InvalidStateTransitionError
-from .models import Order, OrderEvent, OrderOutbox, OrderSubProcess, SubProcessDependency
+from .models import (
+    AsyncOrderEvent,
+    AsyncOrderOutbox,
+    Order,
+    OrderEvent,
+    OrderOutbox,
+    OrderSubProcess,
+    SubProcessDependency,
+)
 from .types import EVENT_SP_TIMEOUT, SUBPROCESS_STATUS_PENDING
 
 
@@ -24,8 +40,16 @@ class DispatchResult:
         self.duplicate = duplicate
 
 
-class SyncOrderDispatcher:
-    """Stateless synchronous dispatcher for subprocess events."""
+class _DispatcherBase:
+    """Shared stateless dispatch logic.
+
+    Subclasses set ``_event_cls`` and ``_outbox_cls`` to the appropriate
+    sync or async model classes so that factory methods produce the right
+    concrete types.
+    """
+
+    _event_cls: ClassVar[Any]
+    _outbox_cls: ClassVar[Any]
 
     def on_event(
         self,
@@ -41,7 +65,7 @@ class SyncOrderDispatcher:
     ) -> DispatchResult:
         """Apply one event, enforce idempotency, and enqueue downstream side effects."""
         events = list(events or [])
-        existing = OrderEvent.find_by_event_key(events, event_key)
+        existing = self._event_cls.find_by_event_key(events, event_key)
         if existing:
             return DispatchResult(existing, duplicate=True)
 
@@ -50,46 +74,29 @@ class SyncOrderDispatcher:
 
         if subprocess.is_terminal():
             if subprocess.status == new_status:
-                event = OrderEvent.status_changed(
-                    order,
-                    subprocess,
-                    subprocess.status,
-                    new_status,
-                    payload,
-                    event_key,
+                event = self._event_cls.status_changed(
+                    order, subprocess, subprocess.status, new_status, payload, event_key,
                 )
                 return DispatchResult(event)
-            conflict_event = OrderEvent.conflict_event(
-                order,
-                subprocess,
-                new_status,
-                payload,
-                event_key,
+            conflict_event = self._event_cls.conflict_event(
+                order, subprocess, new_status, payload, event_key,
             )
             return DispatchResult(conflict_event)
 
         previous_status = subprocess.apply_status(new_status)
-        event = OrderEvent.status_changed(
-            order,
-            subprocess,
-            previous_status,
-            new_status,
-            payload,
-            event_key,
+        event = self._event_cls.status_changed(
+            order, subprocess, previous_status, new_status, payload, event_key,
         )
 
         started = []
         outbox_items = []
         if subprocess.is_advance_status(new_status):
             started = self._start_ready_subprocesses(subprocesses, dependencies)
-            outbox_items = [
-                OrderOutbox.handler_start(event, started_subprocess)
-                for started_subprocess in started
-            ]
+            outbox_items = [self._outbox_cls.handler_start(event, sp) for sp in started]
 
         if order.all_subprocesses_completed(subprocesses):
             order.mark_completed()
-            events.append(OrderEvent.order_completed(order))
+            events.append(self._event_cls.order_completed(order))
 
         return DispatchResult(event, started_subprocesses=started, outbox_items=outbox_items)
 
@@ -115,13 +122,48 @@ class SyncOrderDispatcher:
             payload={"event_type": EVENT_SP_TIMEOUT},
         )
 
+    def on_rollback(
+        self,
+        order: Order,
+        subprocess: OrderSubProcess,
+        *,
+        events: Optional[Sequence[OrderEvent]] = None,
+        event_key: Optional[str] = None,
+    ) -> DispatchResult:
+        """Begin a rollback for a reversible subprocess in a rollback state."""
+        events = list(events or [])
+        existing = self._event_cls.find_by_event_key(events, event_key)
+        if existing:
+            return DispatchResult(existing, duplicate=True)
+
+        if not subprocess.can_rollback():
+            raise InvalidStateTransitionError(
+                f"Subprocess '{subprocess.step_name}' cannot be rolled back "
+                f"(reversible={subprocess.is_reversible}, "
+                f"rollback_status={subprocess.rollback_status}, "
+                f"status={subprocess.status})"
+            )
+
+        subprocess.begin_rollback()
+        event = self._event_cls.rollback_started(order, subprocess, event_key)
+        outbox_items = [self._outbox_cls.handler_rollback(event, subprocess)]
+        return DispatchResult(event, outbox_items=outbox_items)
+
+    @staticmethod
+    def _group_by_subprocess(dependencies):
+        """Group dependency edges by downstream subprocess id (pure logic)."""
+        grouped: Dict = {}
+        for dependency in dependencies:
+            grouped.setdefault(dependency.subprocess_id, []).append(dependency)
+        return grouped
+
     def _start_ready_subprocesses(
         self,
         subprocesses: Sequence[OrderSubProcess],
         dependencies: Sequence[SubProcessDependency],
     ) -> List[OrderSubProcess]:
-        subprocess_by_id = {subprocess.id: subprocess for subprocess in subprocesses}
-        dependencies_by_subprocess = SubProcessDependency.group_by_subprocess(dependencies)
+        subprocess_by_id = {sp.id: sp for sp in subprocesses}
+        dependencies_by_subprocess = self._group_by_subprocess(dependencies)
 
         started = []
         for candidate in subprocesses:
@@ -131,24 +173,66 @@ class SyncOrderDispatcher:
             if not candidate_dependencies:
                 continue
             if all(
-                subprocess_by_id[dependency.depends_on_id].dependency_satisfied()
-                for dependency in candidate_dependencies
+                subprocess_by_id[dep.depends_on_id].dependency_satisfied()
+                for dep in candidate_dependencies
             ):
                 candidate.mark_running()
                 started.append(candidate)
         return started
 
 
-class AsyncOrderDispatcher:
-    """Async dispatcher facade preserving method parity with SyncOrderDispatcher."""
+class SyncOrderDispatcher(_DispatcherBase):
+    """Synchronous dispatcher producing sync model instances."""
 
-    def __init__(self):
-        self._sync_dispatcher = SyncOrderDispatcher()
+    _event_cls = OrderEvent
+    _outbox_cls = OrderOutbox
 
-    async def on_event(self, *args, **kwargs) -> DispatchResult:
+
+class AsyncOrderDispatcher(_DispatcherBase):
+    """Asynchronous dispatcher producing async model instances.
+
+    The dispatch logic itself is pure (no I/O) so the ``async def`` methods
+    exist for API parity with :class:`SyncOrderDispatcher`. The async
+    distinction matters at the service layer where DB I/O occurs.
+
+    Note: ``on_timeout`` and ``on_rollback`` are overridden because the base
+    implementations call ``self.on_event(...)`` which is ``async def`` here
+    and returns a coroutine — the async overrides must ``await`` it.
+    """
+
+    _event_cls = AsyncOrderEvent
+    _outbox_cls = AsyncOrderOutbox
+
+    async def on_event(self, *args, **kwargs) -> DispatchResult:  # type: ignore[override]
         """Handle a subprocess event asynchronously."""
-        return self._sync_dispatcher.on_event(*args, **kwargs)
+        return super().on_event(*args, **kwargs)
 
-    async def on_timeout(self, *args, **kwargs) -> DispatchResult:
+    async def on_timeout(  # type: ignore[override]
+        self,
+        order,
+        subprocess,
+        *,
+        subprocesses,
+        dependencies,
+        events=None,
+    ) -> DispatchResult:
         """Handle a subprocess timeout asynchronously."""
-        return self._sync_dispatcher.on_timeout(*args, **kwargs)
+        if not subprocess.timeout_status:
+            raise InvalidStateTransitionError("Subprocess has no timeout_status")
+        return await self.on_event(
+            order,
+            subprocess,
+            new_status=subprocess.timeout_status,
+            subprocesses=subprocesses,
+            dependencies=dependencies,
+            events=events,
+            payload={"event_type": EVENT_SP_TIMEOUT},
+        )
+
+    async def on_rollback(self, *args, **kwargs) -> DispatchResult:  # type: ignore[override]
+        """Begin a subprocess rollback asynchronously.
+
+        The base ``on_rollback`` does not call ``self.on_event`` so it is safe
+        to delegate directly.
+        """
+        return super().on_rollback(*args, **kwargs)

@@ -6,8 +6,8 @@
 
 ## 目录
 
-- [简介](introduction/README.md)
-- [快速开始](getting_started/README.md)
-- [核心概念](concepts/README.md)
-- [运行时](runtime/README.md)
-- [测试](testing/README.md)
+- [简介](introduction/README.md) — 设计目标、核心能力、同步/异步对等原则、模块结构
+- [快速开始](getting_started/README.md) — 安装、同步/异步路径示例、状态分类规则
+- [核心概念](concepts/README.md) — 三层架构、9 个模型详解、同步/异步模型兄弟
+- [运行时](runtime/README.md) — 调度器、服务层、Outbox 投递器、Handler 注册、回滚生命周期、超时调度
+- [测试](testing/README.md) — 测试覆盖（120 个测试）、多后端 Provider 架构、添加新后端

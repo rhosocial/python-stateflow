@@ -31,7 +31,7 @@ class OrderEventQuery:
 
     @classmethod
     def conflicts(cls):
-        return cls.model.query().where(cls.model.c.conflict == True)
+        return cls.model.query().where(cls.model.c.conflict == True)  # noqa: E712
 
     @classmethod
     def by_correlation_id(cls, correlation_id):
