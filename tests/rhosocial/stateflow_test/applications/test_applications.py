@@ -28,7 +28,7 @@ from rhosocial.stateflow.applications import AgentPlan, ApprovalFlow, TaskOrches
 @pytest.fixture
 def backend_group():
     """Shared backend for sync example tests."""
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(name="examples", models=list(ApprovalFlow.models),
                       config=config, backend_class=SQLiteBackend) as g:
         b = g.get_backend()

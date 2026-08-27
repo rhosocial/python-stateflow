@@ -36,7 +36,7 @@ ALL_MODELS = (
 
 @pytest.fixture
 def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(
         name="timer-test", models=list(ALL_MODELS), config=config, backend_class=SQLiteBackend,
     ) as group:

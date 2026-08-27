@@ -50,7 +50,7 @@ class SQLiteSyncProvider(StateflowSyncProvider):
         )
 
     def setup(self) -> object:
-        config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+        config = SQLiteConnectionConfig(database=":memory:")
         group = BackendGroup(
             name="stateflow-sqlite-sync",
             models=list(self.models),

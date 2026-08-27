@@ -50,7 +50,7 @@ class SQLiteAsyncProvider(StateflowAsyncProvider):
         )
 
     async def setup(self) -> object:
-        config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+        config = SQLiteConnectionConfig(database=":memory:")
         group = AsyncBackendGroup(
             name="stateflow-sqlite-async",
             models=list(self.models),

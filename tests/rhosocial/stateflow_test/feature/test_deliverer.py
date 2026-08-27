@@ -43,7 +43,7 @@ def backend_group():
         OrderTemplate, OrderTemplateStep, FlowPath, Order, OrderProcess,
         OrderSubProcess, SubProcessDependency, OrderEvent, OrderOutbox,
     )
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(
         name="deliverer-test", models=list(models), config=config, backend_class=SQLiteBackend,
     ) as group:

@@ -17,7 +17,7 @@ from rhosocial.stateflow.applications.external_services import MockCreditService
 
 @pytest.fixture
 def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(name="mg", models=list(MediaGenerationFlow.models),
                       config=config, backend_class=SQLiteBackend) as g:
         b = g.get_backend()
@@ -142,7 +142,7 @@ class TestMediaGenerationSync:
 
 @pytest.fixture
 async def async_backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     async with AsyncBackendGroup(name="mg-async", models=list(MediaGenerationFlow.async_models),
                                  config=config, backend_class=AsyncSQLiteBackend) as g:
         b = g.get_backend()

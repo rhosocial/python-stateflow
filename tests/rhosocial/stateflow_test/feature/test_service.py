@@ -52,13 +52,8 @@ ALL_MODELS = (
 
 @pytest.fixture
 def backend_group():
-    """Configure all stateflow models on a single in-memory SQLite backend.
-
-    ``check_same_thread=False`` lets :class:`AsyncOrderService` run the sync
-    service via :func:`asyncio.to_thread` without SQLite rejecting the
-    cross-thread connection access.
-    """
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    """Configure all stateflow models on a single in-memory SQLite backend."""
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(
         name="stateflow-test",
         models=list(ALL_MODELS),

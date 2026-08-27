@@ -27,7 +27,7 @@ from rhosocial.stateflow.applications import AgentPlan, ApprovalFlow, TaskOrches
 
 @pytest.fixture
 async def async_backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     async with AsyncBackendGroup(name="apps-async", models=list(ApprovalFlow.async_models),
                                   config=config, backend_class=AsyncSQLiteBackend) as g:
         b = g.get_backend()

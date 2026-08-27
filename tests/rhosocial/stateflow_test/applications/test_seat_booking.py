@@ -17,7 +17,7 @@ from rhosocial.stateflow.applications.external_services import MockPaymentServic
 
 @pytest.fixture
 def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     with BackendGroup(name="sb", models=list(SeatBookingFlow.models),
                       config=config, backend_class=SQLiteBackend) as g:
         b = g.get_backend()
@@ -124,7 +124,7 @@ class TestSeatBookingSync:
 
 @pytest.fixture
 async def async_backend_group():
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     async with AsyncBackendGroup(name="sb-async", models=list(SeatBookingFlow.async_models),
                                  config=config, backend_class=AsyncSQLiteBackend) as g:
         b = g.get_backend()

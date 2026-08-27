@@ -58,7 +58,7 @@ ALL_ASYNC_MODELS = (
 @pytest.fixture
 async def async_backend_group():
     """Configure all async stateflow models on a single in-memory AsyncSQLiteBackend."""
-    config = SQLiteConnectionConfig(database=":memory:", check_same_thread=False)
+    config = SQLiteConnectionConfig(database=":memory:")
     async with AsyncBackendGroup(
         name="stateflow-async-test",
         models=list(ALL_ASYNC_MODELS),
