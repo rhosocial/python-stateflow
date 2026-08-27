@@ -1,7 +1,6 @@
 # tests/providers/mariadb_async.py
-"""MariaDB async provider for stateflow tests."""
+"""MariaDB async provider for stateflow tests (MariaDB 12.2)."""
 
-import os
 from typing import Sequence, Type
 
 from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
@@ -17,23 +16,17 @@ from rhosocial.stateflow.models import (
 
 from .base import StateflowAsyncProvider
 
+_HOST = "192.168.1.3"
+_PORT = 15691
+_DB = "test_db"
+_USER = "root"
+_PWD = "password"
+
 
 class MariaDBAsyncProvider(StateflowAsyncProvider):
     @property
     def name(self) -> str:
         return "mariadb-async"
-
-    @classmethod
-    def is_available(cls) -> bool:
-        import socket
-        import os
-        try:
-            host = os.environ.get("STATEFLOW_MARIADB_HOST", "127.0.0.1")
-            port = int(os.environ.get("STATEFLOW_MARIADB_PORT", "3306"))
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except (OSError, ConnectionError):
-            return False
 
     @property
     def models(self) -> Sequence[Type]:
@@ -43,19 +36,24 @@ class MariaDBAsyncProvider(StateflowAsyncProvider):
             AsyncSubProcessDependency, AsyncOrderEvent, AsyncOrderOutbox,
         )
 
+    @classmethod
+    def is_available(cls) -> bool:
+        import socket
+        try:
+            with socket.create_connection((_HOST, _PORT), timeout=2):
+                return True
+        except (OSError, ConnectionError):
+            return False
+
     async def setup(self) -> object:
         config = MariaDBConnectionConfig(
-            host=os.environ.get("STATEFLOW_MARIADB_HOST", "127.0.0.1"),
-            port=int(os.environ.get("STATEFLOW_MARIADB_PORT", "3306")),
-            username=os.environ.get("STATEFLOW_MARIADB_USER", "root"),
-            password=os.environ.get("STATEFLOW_MARIADB_PASSWORD", ""),
-            database=os.environ.get("STATEFLOW_MARIADB_DB", "stateflow_test"),
+            host=_HOST, port=_PORT, database=_DB,
+            username=_USER, password=_PWD, charset="utf8mb4",
+            autocommit=True, ssl_disabled=False,
         )
         group = AsyncBackendGroup(
-            name="stateflow-mariadb-async",
-            models=list(self.models),
-            config=config,
-            backend_class=AsyncMariaDBBackend,
+            name="stateflow-mariadb-async", models=list(self.models),
+            config=config, backend_class=AsyncMariaDBBackend,
         )
         await group.configure()
         backend = group.get_backend()

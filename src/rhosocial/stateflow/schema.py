@@ -77,18 +77,20 @@ def _table(dialect, name, columns):
 
 def _table_expressions(dialect):
     """Return all 9 CreateTableExpression objects compiled for ``dialect``."""
-    from rhosocial.activerecord.backend.expression.types import IntegerType, TextType
+    from rhosocial.activerecord.backend.expression.types import BooleanType, IntegerType, TextType, VarCharType
 
     _T = TextType()
     _I = IntegerType()
+    _B = BooleanType()
+    _ID = VarCharType(36)  # UUID v4 string is exactly 36 chars
 
     return [
         # 1. stateflow_order_templates
         _table(dialect, "stateflow_order_templates", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("name", _T, not_null=True),
-            _col("version", _I, not_null=True, default=1),
-            _col("status", _T, not_null=True, default="draft"),
+            _col("version", _I, not_null=True),
+            _col("status", _T, not_null=True),
             _col("description", _T),
             _col("published_at", _T),
             _col("deprecated_at", _T),
@@ -99,40 +101,40 @@ def _table_expressions(dialect):
         ]),
         # 2. stateflow_order_template_steps
         _table(dialect, "stateflow_order_template_steps", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("template_id", _T, not_null=True),
             _col("name", _T, not_null=True),
             _col("handler_class", _T, not_null=True),
-            _col("terminal_states", _T, not_null=True, default="[]"),
-            _col("advance_states", _T, not_null=True, default="[]"),
-            _col("rollback_states", _T, not_null=True, default="[]"),
+            _col("terminal_states", _T, not_null=True),
+            _col("advance_states", _T, not_null=True),
+            _col("rollback_states", _T, not_null=True),
             _col("timeout_seconds", _I),
             _col("timeout_status", _T),
             _col("on_start_notify", _T),
             _col("on_complete_notify", _T),
             _col("on_rollback_notify", _T),
             _col("on_timeout_notify", _T),
-            _col("depends_on", _T, not_null=True, default="[]"),
-            _col("step_order", _I, not_null=True, default=0),
+            _col("depends_on", _T, not_null=True),
+            _col("step_order", _I, not_null=True),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),
         ]),
         # 3. stateflow_flow_paths
         _table(dialect, "stateflow_flow_paths", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("template_id", _T, not_null=True),
             _col("name", _T, not_null=True),
-            _col("skip_steps", _T, not_null=True, default="[]"),
+            _col("skip_steps", _T, not_null=True),
             _col("start_from", _T),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),
         ]),
         # 4. stateflow_orders
         _table(dialect, "stateflow_orders", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("template_id", _T, not_null=True),
-            _col("status", _T, not_null=True, default="pending"),
-            _col("context", _T, not_null=True, default="{}"),
+            _col("status", _T, not_null=True),
+            _col("context", _T, not_null=True),
             _col("started_at", _T),
             _col("completed_at", _T),
             _col("created_at", _T, not_null=True),
@@ -140,44 +142,44 @@ def _table_expressions(dialect):
         ]),
         # 5. stateflow_order_processes
         _table(dialect, "stateflow_order_processes", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("order_id", _T, not_null=True),
-            _col("template_snapshot", _T, not_null=True, default="{}"),
+            _col("template_snapshot", _T, not_null=True),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),
         ]),
         # 6. stateflow_order_subprocesses
         _table(dialect, "stateflow_order_subprocesses", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("process_id", _T, not_null=True),
             _col("step_name", _T, not_null=True),
-            _col("status", _T, not_null=True, default="pending"),
+            _col("status", _T, not_null=True),
             _col("handler_class", _T, not_null=True),
-            _col("terminal_states", _T, not_null=True, default="[]"),
-            _col("advance_states", _T, not_null=True, default="[]"),
-            _col("rollback_states", _T, not_null=True, default="[]"),
+            _col("terminal_states", _T, not_null=True),
+            _col("advance_states", _T, not_null=True),
+            _col("rollback_states", _T, not_null=True),
             _col("timeout_seconds", _I),
             _col("timeout_status", _T),
             _col("started_at", _T),
             _col("timeout_at", _T),
             _col("completed_at", _T),
-            _col("skipped", _I, not_null=True, default=0),
-            _col("extra", _T, not_null=True, default="{}"),
-            _col("source", _T, not_null=True, default="template"),
-            _col("sequence", _I, not_null=True, default=0),
+            _col("skipped", _B, not_null=True),
+            _col("extra", _T, not_null=True),
+            _col("source", _T, not_null=True),
+            _col("sequence", _I, not_null=True),
             _col("created_event_id", _T),
-            _col("is_reversible", _I, not_null=True, default=0),
-            _col("rollback_status", _T, not_null=True, default="not_required"),
+            _col("is_reversible", _B, not_null=True),
+            _col("rollback_status", _T, not_null=True),
             _col("rollback_started_at", _T),
             _col("rollback_completed_at", _T),
             _col("rollback_error", _T),
-            _col("version", _I, not_null=True, default=1),
+            _col("version", _I, not_null=True),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),
         ]),
         # 7. stateflow_subprocess_dependencies
         _table(dialect, "stateflow_subprocess_dependencies", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("process_id", _T, not_null=True),
             _col("subprocess_id", _T, not_null=True),
             _col("depends_on_id", _T, not_null=True),
@@ -186,28 +188,28 @@ def _table_expressions(dialect):
         ]),
         # 8. stateflow_order_events
         _table(dialect, "stateflow_order_events", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("order_id", _T, not_null=True),
             _col("subprocess_id", _T),
             _col("event_type", _T, not_null=True),
             _col("from_status", _T),
             _col("to_status", _T),
-            _col("payload", _T, not_null=True, default="{}"),
+            _col("payload", _T, not_null=True),
             _col("event_key", _T),
             _col("correlation_id", _T),
             _col("causation_id", _T),
-            _col("conflict", _I, not_null=True, default=0),
+            _col("conflict", _B, not_null=True),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),
         ]),
         # 9. stateflow_order_outbox
         _table(dialect, "stateflow_order_outbox", [
-            _col("id", _T, pk=True),
+            _col("id", _ID, pk=True),
             _col("event_id", _T, not_null=True),
             _col("topic", _T, not_null=True),
-            _col("payload", _T, not_null=True, default="{}"),
-            _col("status", _T, not_null=True, default="pending"),
-            _col("retry_count", _I, not_null=True, default=0),
+            _col("payload", _T, not_null=True),
+            _col("status", _T, not_null=True),
+            _col("retry_count", _I, not_null=True),
             _col("next_retry_at", _T),
             _col("created_at", _T, not_null=True),
             _col("updated_at", _T, not_null=True),

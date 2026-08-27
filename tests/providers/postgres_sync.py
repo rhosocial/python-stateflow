@@ -1,10 +1,10 @@
-# tests/providers/mariadb_sync.py
-"""MariaDB sync provider for stateflow tests (MariaDB 12.2)."""
+# tests/providers/postgres_sync.py
+"""PostgreSQL sync provider for stateflow tests (PostgreSQL 19 beta3)."""
 
 from typing import Sequence, Type
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
-from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.impl.postgres import PostgresBackend
+from rhosocial.activerecord.backend.impl.postgres.config import PostgresConnectionConfig
 from rhosocial.activerecord.connection import BackendGroup
 
 from rhosocial.stateflow import create_tables, drop_tables
@@ -16,16 +16,16 @@ from rhosocial.stateflow.models import (
 from .base import StateflowSyncProvider
 
 _HOST = "192.168.1.3"
-_PORT = 15691
+_PORT = 16690
 _DB = "test_db"
 _USER = "root"
 _PWD = "password"
 
 
-class MariaDBSyncProvider(StateflowSyncProvider):
+class PostgresSyncProvider(StateflowSyncProvider):
     @property
     def name(self) -> str:
-        return "mariadb-sync"
+        return "postgres-sync"
 
     @property
     def models(self) -> Sequence[Type]:
@@ -45,14 +45,13 @@ class MariaDBSyncProvider(StateflowSyncProvider):
             return False
 
     def setup(self) -> object:
-        config = MariaDBConnectionConfig(
+        config = PostgresConnectionConfig(
             host=_HOST, port=_PORT, database=_DB,
-            username=_USER, password=_PWD, charset="utf8mb4",
-            autocommit=True, ssl_disabled=False,
+            username=_USER, password=_PWD,
         )
         group = BackendGroup(
-            name="stateflow-mariadb-sync", models=list(self.models),
-            config=config, backend_class=MariaDBBackend,
+            name="stateflow-postgres-sync", models=list(self.models),
+            config=config, backend_class=PostgresBackend,
         )
         group.configure()
         backend = group.get_backend()

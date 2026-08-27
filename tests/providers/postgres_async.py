@@ -1,10 +1,10 @@
-# tests/providers/mysql_async.py
-"""MySQL async provider for stateflow tests (MySQL 9.7)."""
+# tests/providers/postgres_async.py
+"""PostgreSQL async provider for stateflow tests (PostgreSQL 19 beta3)."""
 
 from typing import Sequence, Type
 
-from rhosocial.activerecord.backend.impl.mysql import AsyncMySQLBackend
-from rhosocial.activerecord.backend.impl.mysql.config import MySQLConnectionConfig
+from rhosocial.activerecord.backend.impl.postgres import AsyncPostgresBackend
+from rhosocial.activerecord.backend.impl.postgres.config import PostgresConnectionConfig
 from rhosocial.activerecord.connection import AsyncBackendGroup
 
 from rhosocial.stateflow import async_create_tables, async_drop_tables
@@ -17,16 +17,16 @@ from rhosocial.stateflow.models import (
 from .base import StateflowAsyncProvider
 
 _HOST = "192.168.1.3"
-_PORT = 14686
+_PORT = 16690
 _DB = "test_db"
 _USER = "root"
 _PWD = "password"
 
 
-class MySQLAsyncProvider(StateflowAsyncProvider):
+class PostgresAsyncProvider(StateflowAsyncProvider):
     @property
     def name(self) -> str:
-        return "mysql-async"
+        return "postgres-async"
 
     @property
     def models(self) -> Sequence[Type]:
@@ -46,14 +46,13 @@ class MySQLAsyncProvider(StateflowAsyncProvider):
             return False
 
     async def setup(self) -> object:
-        config = MySQLConnectionConfig(
+        config = PostgresConnectionConfig(
             host=_HOST, port=_PORT, database=_DB,
-            username=_USER, password=_PWD, charset="utf8mb4",
-            autocommit=True, ssl_disabled=False,
+            username=_USER, password=_PWD,
         )
         group = AsyncBackendGroup(
-            name="stateflow-mysql-async", models=list(self.models),
-            config=config, backend_class=AsyncMySQLBackend,
+            name="stateflow-postgres-async", models=list(self.models),
+            config=config, backend_class=AsyncPostgresBackend,
         )
         await group.configure()
         backend = group.get_backend()
