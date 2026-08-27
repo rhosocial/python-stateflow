@@ -3,29 +3,15 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend, AsyncSQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup, AsyncBackendGroup
 from rhosocial.stateflow import (
     SyncOrderFactory, SyncOrderService, AsyncOrderFactory, AsyncOrderService,
-    create_tables, drop_tables, async_create_tables, async_drop_tables,
     Order, AsyncOrder,
 )
 from rhosocial.stateflow.applications import SeatBookingFlow
 from rhosocial.stateflow.applications.external_services import MockPaymentService, AsyncMockPaymentService
 
 
-@pytest.fixture
-def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(name="sb", models=list(SeatBookingFlow.models),
-                      config=config, backend_class=SQLiteBackend) as g:
-        b = g.get_backend()
-        b.connect()
-        b.introspect_and_adapt()
-        create_tables(b)
-        yield g
-        drop_tables(b)
+
 
 
 def _persist(instance):
@@ -122,17 +108,7 @@ class TestSeatBookingSync:
         assert result.event.event_type == "sp_rollback_started"
 
 
-@pytest.fixture
-async def async_backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    async with AsyncBackendGroup(name="sb-async", models=list(SeatBookingFlow.async_models),
-                                 config=config, backend_class=AsyncSQLiteBackend) as g:
-        b = g.get_backend()
-        await b.connect()
-        await b.introspect_and_adapt()
-        await async_create_tables(b)
-        yield g
-        await async_drop_tables(b)
+
 
 
 async def _async_persist(instance):

@@ -10,9 +10,6 @@ import uuid
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import AsyncSQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import AsyncBackendGroup
 from rhosocial.stateflow import (
     AsyncHandlerStartTopic,
     AsyncOrder,
@@ -31,8 +28,6 @@ from rhosocial.stateflow import (
     FlowPath,
     HandlerRegistry,
     HandlerResult,
-    async_create_tables,
-    async_drop_tables,
 )
 from rhosocial.stateflow.types import (
     EVENT_SP_ROLLBACK_STARTED,
@@ -55,22 +50,7 @@ ALL_ASYNC_MODELS = (
 )
 
 
-@pytest.fixture
-async def async_backend_group():
-    """Configure all async stateflow models on a single in-memory AsyncSQLiteBackend."""
-    config = SQLiteConnectionConfig(database=":memory:")
-    async with AsyncBackendGroup(
-        name="stateflow-async-test",
-        models=list(ALL_ASYNC_MODELS),
-        config=config,
-        backend_class=AsyncSQLiteBackend,
-    ) as group:
-        backend = group.get_backend()
-        await backend.connect()
-        await backend.introspect_and_adapt()
-        await async_create_tables(backend)
-        yield group
-        await async_drop_tables(backend)
+
 
 
 @pytest.fixture

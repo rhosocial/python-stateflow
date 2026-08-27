@@ -5,9 +5,6 @@ import uuid
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     ConcurrentStateTransitionError,
     InvalidStateTransitionError,
@@ -22,8 +19,6 @@ from rhosocial.stateflow import (
     SubProcessDependency,
     SyncOrderFactory,
     SyncOrderService,
-    create_tables,
-    drop_tables,
 )
 from rhosocial.stateflow.service import _CONCURRENCY_MESSAGE
 from rhosocial.stateflow.types import (
@@ -50,22 +45,7 @@ ALL_MODELS = (
 )
 
 
-@pytest.fixture
-def backend_group():
-    """Configure all stateflow models on a single in-memory SQLite backend."""
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(
-        name="stateflow-test",
-        models=list(ALL_MODELS),
-        config=config,
-        backend_class=SQLiteBackend,
-    ) as group:
-        backend = group.get_backend()
-        backend.connect()
-        backend.introspect_and_adapt()
-        create_tables(backend)
-        yield group
-        drop_tables(backend)
+
 
 
 @pytest.fixture

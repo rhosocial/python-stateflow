@@ -4,9 +4,6 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     FlowPath,
     HandlerRegistry,
@@ -24,8 +21,6 @@ from rhosocial.stateflow import (
     SyncOrderFactory,
     SyncOrderService,
     SyncSubProcessHandler,
-    create_tables,
-    drop_tables,
 )
 from rhosocial.stateflow.types import (
     EVENT_SP_ROLLBACK_FAILED,
@@ -44,18 +39,7 @@ ALL_MODELS = (
 )
 
 
-@pytest.fixture
-def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(
-        name="rollback-test", models=list(ALL_MODELS), config=config, backend_class=SQLiteBackend,
-    ) as group:
-        backend = group.get_backend()
-        backend.connect()
-        backend.introspect_and_adapt()
-        create_tables(backend)
-        yield group
-        drop_tables(backend)
+
 
 
 @pytest.fixture

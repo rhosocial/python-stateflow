@@ -35,6 +35,10 @@ class SQLiteAsyncProvider(StateflowAsyncProvider):
     def name(self) -> str:
         return "sqlite-async"
 
+    @classmethod
+    def is_available(cls) -> bool:
+        return True
+
     @property
     def models(self) -> Sequence[Type]:
         return (

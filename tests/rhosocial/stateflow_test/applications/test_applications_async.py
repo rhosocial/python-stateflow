@@ -10,32 +10,17 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import AsyncSQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import AsyncBackendGroup
 from rhosocial.stateflow import (
     AsyncOrderFactory,
     AsyncOrderService,
     AsyncTimeoutScheduler,
-    async_create_tables,
-    async_drop_tables,
     AsyncOrder,
     AsyncOrderSubProcess,
 )
 from rhosocial.stateflow.applications import AgentPlan, ApprovalFlow, TaskOrchestration, TicketSystem
 
 
-@pytest.fixture
-async def async_backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    async with AsyncBackendGroup(name="apps-async", models=list(ApprovalFlow.async_models),
-                                  config=config, backend_class=AsyncSQLiteBackend) as g:
-        b = g.get_backend()
-        await b.connect()
-        await b.introspect_and_adapt()
-        await async_create_tables(b)
-        yield g
-        await async_drop_tables(b)
+
 
 
 async def _async_persist(instance):

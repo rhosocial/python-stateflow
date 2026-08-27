@@ -5,9 +5,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     FlowPath,
     Order,
@@ -21,8 +18,6 @@ from rhosocial.stateflow import (
     SyncOrderFactory,
     SyncOrderService,
     SyncTimeoutScheduler,
-    create_tables,
-    drop_tables,
 )
 from rhosocial.stateflow.types import EVENT_SP_STATUS_CHANGED
 
@@ -34,18 +29,7 @@ ALL_MODELS = (
 )
 
 
-@pytest.fixture
-def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(
-        name="timer-test", models=list(ALL_MODELS), config=config, backend_class=SQLiteBackend,
-    ) as group:
-        backend = group.get_backend()
-        backend.connect()
-        backend.introspect_and_adapt()
-        create_tables(backend)
-        yield group
-        drop_tables(backend)
+
 
 
 @pytest.fixture

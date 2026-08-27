@@ -5,9 +5,6 @@ import uuid
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     AsyncSubProcessHandler,
     FlowPath,
@@ -26,8 +23,6 @@ from rhosocial.stateflow import (
     SyncOrderService,
     SyncSubProcessHandler,
     UnknownHandlerError,
-    create_tables,
-    drop_tables,
 )
 from rhosocial.stateflow.types import (
     OUTBOX_TOPIC_HANDLER_START,
@@ -41,18 +36,7 @@ ALL_MODELS = (
 )
 
 
-@pytest.fixture
-def backend_group():
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(
-        name="registry-test", models=list(ALL_MODELS), config=config, backend_class=SQLiteBackend,
-    ) as group:
-        backend = group.get_backend()
-        backend.connect()
-        backend.introspect_and_adapt()
-        create_tables(backend)
-        yield group
-        drop_tables(backend)
+
 
 
 @pytest.fixture

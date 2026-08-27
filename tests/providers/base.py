@@ -23,6 +23,11 @@ class StateflowSyncProvider(ABC):
     def name(self) -> str:
         """Human-readable backend name (e.g. ``"sqlite-sync"``)."""
 
+    @classmethod
+    @abstractmethod
+    def is_available(cls) -> bool:
+        """Return True if the backend module is importable and the server is reachable."""
+
     @abstractmethod
     def setup(self) -> object:
         """Configure models, create schema, return a backend group handle."""
@@ -48,6 +53,11 @@ class StateflowAsyncProvider(ABC):
     @abstractmethod
     def name(self) -> str:
         """Human-readable backend name (e.g. ``"sqlite-async"``)."""
+
+    @classmethod
+    @abstractmethod
+    def is_available(cls) -> bool:
+        """Return True if the backend module is importable and the server is reachable."""
 
     @abstractmethod
     async def setup(self) -> object:

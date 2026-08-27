@@ -1,13 +1,21 @@
 # src/rhosocial/stateflow/schema.py
-"""Schema helpers for stateflow tables.
+"""Schema helpers for stateflow tables using ActiveRecord DDL expressions.
 
-The DDL strings here are SQLite-flavored by default (stateflow ships with the
-SQLite backend out of the box). Backend-specific DDL is intentionally left to
-the multi-backend testsuite integration layer; see ``changelog.d`` for the
-roadmap. Every table is created with ``IF NOT EXISTS`` so the helper is
-idempotent and safe to call from fixtures and application bootstrap.
+Table definitions use :class:`~rhosocial.activerecord.backend.expression.CreateTableExpression`
+so the same definition compiles to correct DDL for every supported backend
+(SQLite, MySQL, PostgreSQL, MariaDB, etc.) via the backend's dialect.
+
+Column types are deliberately portable:
+- UUID / datetime / JSON → ``TextType`` (stored as string, adapter handles conversion)
+- int → ``IntegerType``
+- bool → ``IntegerType`` (0/1, works on all backends)
+
+This makes stateflow a real-world cross-backend test case for
+rhosocial-activerecord's dialect system.
+
+Note: expression imports are deferred to function call time to avoid
+the ~10s import cost of the expression module at package load.
 """
-
 
 from .models import (
     FlowPath,
@@ -21,138 +29,7 @@ from .models import (
     SubProcessDependency,
 )
 
-SQLITE_DDL: str = """
-CREATE TABLE IF NOT EXISTS stateflow_order_templates (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    version INTEGER NOT NULL DEFAULT 1,
-    status TEXT NOT NULL DEFAULT 'draft',
-    description TEXT,
-    published_at TEXT,
-    deprecated_at TEXT,
-    created_by TEXT,
-    checksum TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_order_template_steps (
-    id TEXT PRIMARY KEY,
-    template_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    handler_class TEXT NOT NULL,
-    terminal_states TEXT NOT NULL DEFAULT '[]',
-    advance_states TEXT NOT NULL DEFAULT '[]',
-    rollback_states TEXT NOT NULL DEFAULT '[]',
-    timeout_seconds INTEGER,
-    timeout_status TEXT,
-    on_start_notify TEXT,
-    on_complete_notify TEXT,
-    on_rollback_notify TEXT,
-    on_timeout_notify TEXT,
-    depends_on TEXT NOT NULL DEFAULT '[]',
-    step_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_flow_paths (
-    id TEXT PRIMARY KEY,
-    template_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    skip_steps TEXT NOT NULL DEFAULT '[]',
-    start_from TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_orders (
-    id TEXT PRIMARY KEY,
-    template_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    context TEXT NOT NULL DEFAULT '{}',
-    started_at TEXT,
-    completed_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_order_processes (
-    id TEXT PRIMARY KEY,
-    order_id TEXT NOT NULL,
-    template_snapshot TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_order_subprocesses (
-    id TEXT PRIMARY KEY,
-    process_id TEXT NOT NULL,
-    step_name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    handler_class TEXT NOT NULL,
-    terminal_states TEXT NOT NULL DEFAULT '[]',
-    advance_states TEXT NOT NULL DEFAULT '[]',
-    rollback_states TEXT NOT NULL DEFAULT '[]',
-    timeout_seconds INTEGER,
-    timeout_status TEXT,
-    started_at TEXT,
-    timeout_at TEXT,
-    completed_at TEXT,
-    skipped INTEGER NOT NULL DEFAULT 0,
-    extra TEXT NOT NULL DEFAULT '{}',
-    source TEXT NOT NULL DEFAULT 'template',
-    sequence INTEGER NOT NULL DEFAULT 0,
-    created_event_id TEXT,
-    is_reversible INTEGER NOT NULL DEFAULT 0,
-    rollback_status TEXT NOT NULL DEFAULT 'not_required',
-    rollback_started_at TEXT,
-    rollback_completed_at TEXT,
-    rollback_error TEXT,
-    version INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_subprocess_dependencies (
-    id TEXT PRIMARY KEY,
-    process_id TEXT NOT NULL,
-    subprocess_id TEXT NOT NULL,
-    depends_on_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_order_events (
-    id TEXT PRIMARY KEY,
-    order_id TEXT NOT NULL,
-    subprocess_id TEXT,
-    event_type TEXT NOT NULL,
-    from_status TEXT,
-    to_status TEXT,
-    payload TEXT NOT NULL DEFAULT '{}',
-    event_key TEXT,
-    correlation_id TEXT,
-    causation_id TEXT,
-    conflict INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stateflow_order_outbox (
-    id TEXT PRIMARY KEY,
-    event_id TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    payload TEXT NOT NULL DEFAULT '{}',
-    status TEXT NOT NULL DEFAULT 'pending',
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    next_retry_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-"""
-
-ALL_MODELS: tuple = (
+ALL_MODELS = (
     OrderTemplate,
     OrderTemplateStep,
     FlowPath,
@@ -165,50 +42,219 @@ ALL_MODELS: tuple = (
 )
 
 
-def create_tables(backend, *, ddl: str = SQLITE_DDL) -> None:
+# ---------------------------------------------------------------------------
+# Column spec helpers (expression imports are deferred)
+# ---------------------------------------------------------------------------
+
+def _col(name, type_instance, *, pk=False, not_null=False, default=None):
+    """Build a ColumnDefinition from a compact spec."""
+    from rhosocial.activerecord.backend.expression import (
+        ColumnConstraint,
+        ColumnConstraintType,
+        ColumnDefinition,
+    )
+    constraints = []
+    if pk:
+        constraints.append(ColumnConstraint(ColumnConstraintType.PRIMARY_KEY))
+    if not_null:
+        constraints.append(ColumnConstraint(ColumnConstraintType.NOT_NULL))
+    if default is not None:
+        constraints.append(ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=default))
+    return ColumnDefinition(name, type_instance, constraints=constraints)
+
+
+def _table(dialect, name, columns):
+    """Build a CREATE TABLE IF NOT EXISTS expression."""
+    from rhosocial.activerecord.backend.expression import CreateTableExpression
+    return CreateTableExpression(
+        dialect=dialect, table=name, if_not_exists=True, columns=columns,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Table column definitions (shared across all backends)
+# ---------------------------------------------------------------------------
+
+def _table_expressions(dialect):
+    """Return all 9 CreateTableExpression objects compiled for ``dialect``."""
+    from rhosocial.activerecord.backend.expression.types import IntegerType, TextType
+
+    _T = TextType()
+    _I = IntegerType()
+
+    return [
+        # 1. stateflow_order_templates
+        _table(dialect, "stateflow_order_templates", [
+            _col("id", _T, pk=True),
+            _col("name", _T, not_null=True),
+            _col("version", _I, not_null=True, default=1),
+            _col("status", _T, not_null=True, default="draft"),
+            _col("description", _T),
+            _col("published_at", _T),
+            _col("deprecated_at", _T),
+            _col("created_by", _T),
+            _col("checksum", _T),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 2. stateflow_order_template_steps
+        _table(dialect, "stateflow_order_template_steps", [
+            _col("id", _T, pk=True),
+            _col("template_id", _T, not_null=True),
+            _col("name", _T, not_null=True),
+            _col("handler_class", _T, not_null=True),
+            _col("terminal_states", _T, not_null=True, default="[]"),
+            _col("advance_states", _T, not_null=True, default="[]"),
+            _col("rollback_states", _T, not_null=True, default="[]"),
+            _col("timeout_seconds", _I),
+            _col("timeout_status", _T),
+            _col("on_start_notify", _T),
+            _col("on_complete_notify", _T),
+            _col("on_rollback_notify", _T),
+            _col("on_timeout_notify", _T),
+            _col("depends_on", _T, not_null=True, default="[]"),
+            _col("step_order", _I, not_null=True, default=0),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 3. stateflow_flow_paths
+        _table(dialect, "stateflow_flow_paths", [
+            _col("id", _T, pk=True),
+            _col("template_id", _T, not_null=True),
+            _col("name", _T, not_null=True),
+            _col("skip_steps", _T, not_null=True, default="[]"),
+            _col("start_from", _T),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 4. stateflow_orders
+        _table(dialect, "stateflow_orders", [
+            _col("id", _T, pk=True),
+            _col("template_id", _T, not_null=True),
+            _col("status", _T, not_null=True, default="pending"),
+            _col("context", _T, not_null=True, default="{}"),
+            _col("started_at", _T),
+            _col("completed_at", _T),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 5. stateflow_order_processes
+        _table(dialect, "stateflow_order_processes", [
+            _col("id", _T, pk=True),
+            _col("order_id", _T, not_null=True),
+            _col("template_snapshot", _T, not_null=True, default="{}"),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 6. stateflow_order_subprocesses
+        _table(dialect, "stateflow_order_subprocesses", [
+            _col("id", _T, pk=True),
+            _col("process_id", _T, not_null=True),
+            _col("step_name", _T, not_null=True),
+            _col("status", _T, not_null=True, default="pending"),
+            _col("handler_class", _T, not_null=True),
+            _col("terminal_states", _T, not_null=True, default="[]"),
+            _col("advance_states", _T, not_null=True, default="[]"),
+            _col("rollback_states", _T, not_null=True, default="[]"),
+            _col("timeout_seconds", _I),
+            _col("timeout_status", _T),
+            _col("started_at", _T),
+            _col("timeout_at", _T),
+            _col("completed_at", _T),
+            _col("skipped", _I, not_null=True, default=0),
+            _col("extra", _T, not_null=True, default="{}"),
+            _col("source", _T, not_null=True, default="template"),
+            _col("sequence", _I, not_null=True, default=0),
+            _col("created_event_id", _T),
+            _col("is_reversible", _I, not_null=True, default=0),
+            _col("rollback_status", _T, not_null=True, default="not_required"),
+            _col("rollback_started_at", _T),
+            _col("rollback_completed_at", _T),
+            _col("rollback_error", _T),
+            _col("version", _I, not_null=True, default=1),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 7. stateflow_subprocess_dependencies
+        _table(dialect, "stateflow_subprocess_dependencies", [
+            _col("id", _T, pk=True),
+            _col("process_id", _T, not_null=True),
+            _col("subprocess_id", _T, not_null=True),
+            _col("depends_on_id", _T, not_null=True),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 8. stateflow_order_events
+        _table(dialect, "stateflow_order_events", [
+            _col("id", _T, pk=True),
+            _col("order_id", _T, not_null=True),
+            _col("subprocess_id", _T),
+            _col("event_type", _T, not_null=True),
+            _col("from_status", _T),
+            _col("to_status", _T),
+            _col("payload", _T, not_null=True, default="{}"),
+            _col("event_key", _T),
+            _col("correlation_id", _T),
+            _col("causation_id", _T),
+            _col("conflict", _I, not_null=True, default=0),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+        # 9. stateflow_order_outbox
+        _table(dialect, "stateflow_order_outbox", [
+            _col("id", _T, pk=True),
+            _col("event_id", _T, not_null=True),
+            _col("topic", _T, not_null=True),
+            _col("payload", _T, not_null=True, default="{}"),
+            _col("status", _T, not_null=True, default="pending"),
+            _col("retry_count", _I, not_null=True, default=0),
+            _col("next_retry_at", _T),
+            _col("created_at", _T, not_null=True),
+            _col("updated_at", _T, not_null=True),
+        ]),
+    ]
+
+
+def create_tables(backend, *, ddl=None) -> None:
     """Create all stateflow tables on the given backend.
 
-    Executes the DDL statements inside the backend's default execution
-    context. The caller is responsible for committing the transaction if the
-    backend does not auto-commit DDL (SQLite does; some backends do not).
-
-    Args:
-        backend: A configured ``StorageBackend`` instance.
-        ddl: Optional override DDL string; defaults to ``SQLITE_DDL``.
+    Uses the backend's dialect to compile ``CreateTableExpression`` objects
+    into backend-specific DDL. Works for any supported backend (SQLite, MySQL,
+    PostgreSQL, MariaDB, etc.) without per-backend SQL files.
     """
     from rhosocial.activerecord.backend.options import ExecutionOptions
     from rhosocial.activerecord.backend.schema import StatementType
 
+    dialect = backend.dialect
     options = ExecutionOptions(stmt_type=StatementType.DDL)
-    for statement in (stmt for stmt in ddl.split(";") if stmt.strip()):
-        backend.execute(statement, options=options)
+    for expr in _table_expressions(dialect):
+        sql, _ = expr.to_sql()
+        backend.execute(sql, options=options)
 
 
 def drop_tables(backend) -> None:
-    """Drop all stateflow tables. Useful for test teardown."""
+    """Drop all stateflow tables."""
     from rhosocial.activerecord.backend.options import ExecutionOptions
     from rhosocial.activerecord.backend.schema import StatementType
 
     options = ExecutionOptions(stmt_type=StatementType.DDL)
-    drop_ddl = "\n".join(
-        f"DROP TABLE IF EXISTS {model.__table_name__};" for model in reversed(ALL_MODELS)
-    )
-    for statement in (stmt for stmt in drop_ddl.split(";") if stmt.strip()):
-        backend.execute(statement, options=options)
+    for model in reversed(ALL_MODELS):
+        backend.execute(
+            f"DROP TABLE IF EXISTS {model.__table_name__}",
+            options=options,
+        )
 
 
-async def async_create_tables(backend, *, ddl: str = SQLITE_DDL) -> None:
-    """Create all stateflow tables on the given async backend.
-
-    Async counterpart of :func:`create_tables` — uses ``await
-    backend.execute()`` for every DDL statement.
-    """
+async def async_create_tables(backend, *, ddl=None) -> None:
+    """Create all stateflow tables on the given async backend."""
     from rhosocial.activerecord.backend.options import ExecutionOptions
     from rhosocial.activerecord.backend.schema import StatementType
 
+    dialect = backend.dialect
     options = ExecutionOptions(stmt_type=StatementType.DDL)
-    for statement in (stmt for stmt in ddl.split(";") if stmt.strip()):
-        await backend.execute(statement, options=options)
+    for expr in _table_expressions(dialect):
+        sql, _ = expr.to_sql()
+        await backend.execute(sql, options=options)
 
 
 async def async_drop_tables(backend) -> None:
@@ -217,16 +263,17 @@ async def async_drop_tables(backend) -> None:
     from rhosocial.activerecord.backend.schema import StatementType
 
     options = ExecutionOptions(stmt_type=StatementType.DDL)
-    drop_ddl = "\n".join(
-        f"DROP TABLE IF EXISTS {model.__table_name__};" for model in reversed(ALL_MODELS)
-    )
-    for statement in (stmt for stmt in drop_ddl.split(";") if stmt.strip()):
-        await backend.execute(statement, options=options)
+    for model in reversed(ALL_MODELS):
+        await backend.execute(
+            f"DROP TABLE IF EXISTS {model.__table_name__}",
+            options=options,
+        )
 
 
 __all__ = [
     "ALL_MODELS",
-    "SQLITE_DDL",
+    "async_create_tables",
+    "async_drop_tables",
     "create_tables",
     "drop_tables",
 ]

@@ -35,6 +35,10 @@ class SQLiteSyncProvider(StateflowSyncProvider):
     def name(self) -> str:
         return "sqlite-sync"
 
+    @classmethod
+    def is_available(cls) -> bool:
+        return True
+
     @property
     def models(self) -> Sequence[Type]:
         return (

@@ -8,35 +8,18 @@ advance through the full workflow).
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
-from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
-from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     SyncOrderFactory,
     SyncOrderService,
     SyncTimeoutScheduler,
-    create_tables,
-    drop_tables,
     Order,
     OrderSubProcess,
 )
 from rhosocial.stateflow.applications import AgentPlan, ApprovalFlow, TaskOrchestration, TicketSystem
 
 
-@pytest.fixture
-def backend_group():
-    """Shared backend for sync example tests."""
-    config = SQLiteConnectionConfig(database=":memory:")
-    with BackendGroup(name="examples", models=list(ApprovalFlow.models),
-                      config=config, backend_class=SQLiteBackend) as g:
-        b = g.get_backend()
-        b.connect()
-        b.introspect_and_adapt()
-        create_tables(b)
-        yield g
-        drop_tables(b)
+
 
 
 def _persist(instance):
