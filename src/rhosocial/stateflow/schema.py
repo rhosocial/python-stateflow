@@ -29,7 +29,7 @@ from .models import (
     SubProcessDependency,
 )
 
-ALL_MODELS = (
+ALL_MODELS: tuple = (
     OrderTemplate,
     OrderTemplateStep,
     FlowPath,
