@@ -93,13 +93,10 @@ def test_tick_publishes_timeout_for_due_subprocess(backend_group, persisted_inst
         event_key="inv-1",
     )
     payment = persisted_instance.get_subprocess("payment")
-    # Manually expire the timeout by writing a past timeout_at.
-    backend = OrderSubProcess.backend()
-    past = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
-    backend.execute(
-        "UPDATE stateflow_order_subprocesses SET timeout_at = ? WHERE id = ?",
-        (past, str(payment.id)),
-    )
+    # Manually expire the timeout by updating the model directly.
+    payment_db = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    payment_db.timeout_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    payment_db.save()
 
     scheduler = SyncTimeoutScheduler(service)
     processed = scheduler.tick()
@@ -150,12 +147,9 @@ def test_tick_respects_limit(backend_group, persisted_instance):
         event_key="inv-1",
     )
     payment = persisted_instance.get_subprocess("payment")
-    backend = OrderSubProcess.backend()
-    past = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
-    backend.execute(
-        "UPDATE stateflow_order_subprocesses SET timeout_at = ? WHERE id = ?",
-        (past, str(payment.id)),
-    )
+    payment_db = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    payment_db.timeout_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    payment_db.save()
 
     scheduler = SyncTimeoutScheduler(service)
     processed = scheduler.tick(limit=0)

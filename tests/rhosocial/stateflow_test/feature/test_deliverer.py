@@ -139,17 +139,14 @@ def test_deliver_pending_respects_limit(backend_group):
 def test_recover_stuck_returns_processing_to_pending(backend_group):
     """Items left in processing longer than the cutoff are reset to pending."""
     item = _seed_outbox()
-    backend = OrderOutbox.backend()
-    # Bypass TimestampMixin (which would otherwise reset updated_at to now on
-    # save) by writing the processing state and a stale updated_at via raw SQL.
-    stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
-    backend.execute(
-        "UPDATE stateflow_order_outbox SET status = ?, updated_at = ? WHERE id = ?",
-        (OUTBOX_STATUS_PROCESSING, stale, str(item.id)),
-    )
+    # Set status to processing via the model (cross-backend safe).
+    item.status = OUTBOX_STATUS_PROCESSING
+    item.save()
 
+    # stuck_after=0 means any processing item is immediately "stuck",
+    # avoiding the need to manipulate updated_at via raw SQL.
     deliverer = SyncOrderOutboxDeliverer()
-    recovered = deliverer.recover_stuck(timedelta(minutes=5))
+    recovered = deliverer.recover_stuck(timedelta(seconds=0))
 
     assert recovered == 1
     reset = OrderOutbox.query().where(OrderOutbox.c.id == item.id).one()
