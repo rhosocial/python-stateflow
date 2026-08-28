@@ -91,40 +91,54 @@ class HandlerRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Subprocess loaders (sync + async)
+# Subprocess loader bases (sync + async)
 # ---------------------------------------------------------------------------
 
 
-def _load_subprocess_for_outbox(outbox_item: OrderOutbox) -> tuple[OrderSubProcess, Any]:
-    """Load the subprocess referenced by an outbox payload, plus its order_id."""
-    subprocess_id = outbox_item.payload.get("subprocess_id")
-    if subprocess_id is None:
-        raise UnknownHandlerError("Outbox payload is missing 'subprocess_id'")
-    subprocess = (
-        OrderSubProcess.query().where(OrderSubProcess.c.id == subprocess_id).one()
-    )
-    if subprocess is None:
-        raise UnknownHandlerError(f"SubProcess {subprocess_id} not found")
-    process = OrderProcess.query().where(OrderProcess.c.id == subprocess.process_id).one()
-    if process is None:
-        raise UnknownHandlerError(f"OrderProcess {subprocess.process_id} not found")
-    return subprocess, process.order_id
+class _SyncHandlerTopicBase:
+    """Shared subprocess loader for sync handler topics.
+
+    A plain namespace base so sync topics share the loader without duplicating
+    it as a module-level function.
+    """
+
+    @staticmethod
+    def load_subprocess_for_outbox(outbox_item: OrderOutbox) -> tuple[OrderSubProcess, Any]:
+        """Load the subprocess referenced by an outbox payload, plus its order_id."""
+        subprocess_id = outbox_item.payload.get("subprocess_id")
+        if subprocess_id is None:
+            raise UnknownHandlerError("Outbox payload is missing 'subprocess_id'")
+        subprocess = (
+            OrderSubProcess.query().where(OrderSubProcess.c.id == subprocess_id).one()
+        )
+        if subprocess is None:
+            raise UnknownHandlerError(f"SubProcess {subprocess_id} not found")
+        process = OrderProcess.query().where(OrderProcess.c.id == subprocess.process_id).one()
+        if process is None:
+            raise UnknownHandlerError(f"OrderProcess {subprocess.process_id} not found")
+        return subprocess, process.order_id
 
 
-async def _async_load_subprocess_for_outbox(outbox_item: AsyncOrderOutbox) -> tuple[AsyncOrderSubProcess, Any]:
-    """Load the subprocess referenced by an outbox payload, plus its order_id (async)."""
-    subprocess_id = outbox_item.payload.get("subprocess_id")
-    if subprocess_id is None:
-        raise UnknownHandlerError("Outbox payload is missing 'subprocess_id'")
-    subprocess = await (
-        AsyncOrderSubProcess.query().where(AsyncOrderSubProcess.c.id == subprocess_id).one()
-    )
-    if subprocess is None:
-        raise UnknownHandlerError(f"SubProcess {subprocess_id} not found")
-    process = await AsyncOrderProcess.query().where(AsyncOrderProcess.c.id == subprocess.process_id).one()
-    if process is None:
-        raise UnknownHandlerError(f"OrderProcess {subprocess.process_id} not found")
-    return subprocess, process.order_id
+class _AsyncHandlerTopicBase:
+    """Shared subprocess loader for async handler topics."""
+
+    @staticmethod
+    async def load_subprocess_for_outbox(
+        outbox_item: AsyncOrderOutbox,
+    ) -> tuple[AsyncOrderSubProcess, Any]:
+        """Load the subprocess referenced by an outbox payload, plus its order_id (async)."""
+        subprocess_id = outbox_item.payload.get("subprocess_id")
+        if subprocess_id is None:
+            raise UnknownHandlerError("Outbox payload is missing 'subprocess_id'")
+        subprocess = await (
+            AsyncOrderSubProcess.query().where(AsyncOrderSubProcess.c.id == subprocess_id).one()
+        )
+        if subprocess is None:
+            raise UnknownHandlerError(f"SubProcess {subprocess_id} not found")
+        process = await AsyncOrderProcess.query().where(AsyncOrderProcess.c.id == subprocess.process_id).one()
+        if process is None:
+            raise UnknownHandlerError(f"OrderProcess {subprocess.process_id} not found")
+        return subprocess, process.order_id
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +146,7 @@ async def _async_load_subprocess_for_outbox(outbox_item: AsyncOrderOutbox) -> tu
 # ---------------------------------------------------------------------------
 
 
-class SyncHandlerStartTopic:
+class SyncHandlerStartTopic(_SyncHandlerTopicBase):
     """Default ``handler_start`` topic callable for the sync deliverer.
 
     Resolves the subprocess's ``handler_class``, calls ``start()``, and feeds
@@ -153,7 +167,7 @@ class SyncHandlerStartTopic:
         if not isinstance(self.service, SyncOrderService):
             raise TypeError("SyncHandlerStartTopic requires a SyncOrderService instance")
         try:
-            subprocess, order_id = _load_subprocess_for_outbox(outbox_item)
+            subprocess, order_id = self.load_subprocess_for_outbox(outbox_item)
             handler = self.registry.instantiate(subprocess.handler_class, subprocess)
         except UnknownHandlerError as exc:
             raise UnrecoverableDeliveryError(str(exc)) from exc
@@ -169,7 +183,7 @@ class SyncHandlerStartTopic:
         return True
 
 
-class AsyncHandlerStartTopic:
+class AsyncHandlerStartTopic(_AsyncHandlerTopicBase):
     """Default ``handler_start`` topic callable for the async deliverer.
 
     Uses async models with native ``await`` for all DB operations.
@@ -188,7 +202,7 @@ class AsyncHandlerStartTopic:
         if not isinstance(self.service, AsyncOrderService):
             raise TypeError("AsyncHandlerStartTopic requires an AsyncOrderService instance")
         try:
-            subprocess, order_id = await _async_load_subprocess_for_outbox(outbox_item)
+            subprocess, order_id = await self.load_subprocess_for_outbox(outbox_item)
             handler = self.registry.instantiate_async(subprocess.handler_class, subprocess)
         except UnknownHandlerError as exc:
             raise UnrecoverableDeliveryError(str(exc)) from exc
@@ -209,7 +223,7 @@ class AsyncHandlerStartTopic:
 # ---------------------------------------------------------------------------
 
 
-class SyncHandlerRollbackTopic:
+class SyncHandlerRollbackTopic(_SyncHandlerTopicBase):
     """Default ``handler_rollback`` topic callable for the sync deliverer.
 
     Resolves the handler, calls ``rollback()``, publishes the result status
@@ -243,7 +257,7 @@ class SyncHandlerRollbackTopic:
         if not isinstance(self.service, SyncOrderService):
             raise TypeError("SyncHandlerRollbackTopic requires a SyncOrderService instance")
         try:
-            subprocess, order_id = _load_subprocess_for_outbox(outbox_item)
+            subprocess, order_id = self.load_subprocess_for_outbox(outbox_item)
             handler = self.registry.instantiate(subprocess.handler_class, subprocess)
         except UnknownHandlerError as exc:
             raise UnrecoverableDeliveryError(str(exc)) from exc
@@ -310,7 +324,7 @@ class SyncHandlerRollbackTopic:
                 failure_event.save()
 
 
-class AsyncHandlerRollbackTopic:
+class AsyncHandlerRollbackTopic(_AsyncHandlerTopicBase):
     """Default ``handler_rollback`` topic callable for the async deliverer.
 
     Uses async models with native ``await`` for all DB operations.
@@ -341,7 +355,7 @@ class AsyncHandlerRollbackTopic:
         if not isinstance(self.service, AsyncOrderService):
             raise TypeError("AsyncHandlerRollbackTopic requires an AsyncOrderService instance")
         try:
-            subprocess, order_id = await _async_load_subprocess_for_outbox(outbox_item)
+            subprocess, order_id = await self.load_subprocess_for_outbox(outbox_item)
             handler = self.registry.instantiate_async(subprocess.handler_class, subprocess)
         except UnknownHandlerError as exc:
             raise UnrecoverableDeliveryError(str(exc)) from exc

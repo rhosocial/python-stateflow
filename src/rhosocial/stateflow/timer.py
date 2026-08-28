@@ -23,28 +23,26 @@ from typing import Any, Optional
 from .models import AsyncOrderProcess, AsyncOrderSubProcess, OrderProcess, OrderSubProcess
 
 
-def _order_id_for(process_id: Any) -> Any:
-    """Resolve the order_id for a process_id via the sync OrderProcess row."""
-    process = OrderProcess.query().where(OrderProcess.c.id == process_id).one()
-    if process is None:
-        raise ValueError(f"OrderProcess {process_id} not found")
-    return process.order_id
+class _TimeoutSchedulerBase:
+    """Shared retry/event-key helpers for sync and async schedulers.
+
+    Kept as a plain namespace base so the public sync/async schedulers expose
+    identical method signatures without duplicating pure helpers.
+    """
+
+    @staticmethod
+    def timeout_event_key(subprocess_id: Any) -> str:
+        """Deterministic idempotency key for a subprocess timeout."""
+        return f"timeout:{subprocess_id}"
+
+    @staticmethod
+    def retry_delay(base_delay: float, max_delay: float, attempt: int) -> timedelta:
+        """Exponential backoff: base * 2^attempt, capped at max."""
+        delay = min(base_delay * (2 ** attempt), max_delay)
+        return timedelta(seconds=delay)
 
 
-async def _async_order_id_for(process_id: Any) -> Any:
-    """Resolve the order_id for a process_id via the async AsyncOrderProcess row."""
-    process = await AsyncOrderProcess.query().where(AsyncOrderProcess.c.id == process_id).one()
-    if process is None:
-        raise ValueError(f"OrderProcess {process_id} not found")
-    return process.order_id
-
-
-def _timeout_event_key(subprocess_id: Any) -> str:
-    """Deterministic idempotency key for a subprocess timeout."""
-    return f"timeout:{subprocess_id}"
-
-
-class SyncTimeoutScheduler:
+class SyncTimeoutScheduler(_TimeoutSchedulerBase):
     """Synchronous timeout sweeper backed by :class:`SyncOrderService`."""
 
     def __init__(
@@ -62,26 +60,33 @@ class SyncTimeoutScheduler:
         self._retry_base_delay = retry_base_delay
         self._retry_max_delay = retry_max_delay
 
-    def _retry_delay(self, attempt: int) -> timedelta:
-        """Exponential backoff: base * 2^attempt, capped at max."""
-        delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
-        return timedelta(seconds=delay)
+    @staticmethod
+    def _order_id_for(process_id: Any) -> Any:
+        """Resolve the order_id for a process_id via the sync OrderProcess row."""
+        process = OrderProcess.query().where(OrderProcess.c.id == process_id).one()
+        if process is None:
+            raise ValueError(f"OrderProcess {process_id} not found")
+        return process.order_id
 
     def _reschedule(self, subprocess: OrderSubProcess, moment: datetime) -> None:
         """Reset timeout_at into the future with exponential backoff.
 
-        Note: extra is reassigned (not mutated in place) because
+        Note: ``extra`` is reassigned (not mutated in place) because
         ActiveRecord dirty-tracking only detects field reassignment, not
         in-place dict mutation.
         """
         attempt = subprocess.extra.get("timeout_retry_count", 0) + 1
         subprocess.extra = {**subprocess.extra, "timeout_retry_count": attempt}
-        subprocess.timeout_at = moment + self._retry_delay(attempt)
+        subprocess.timeout_at = moment + self.retry_delay(
+            self._retry_base_delay, self._retry_max_delay, attempt
+        )
         subprocess.save()
 
     def _clear_retry_state(self, subprocess: OrderSubProcess) -> None:
         if "timeout_retry_count" in subprocess.extra:
-            subprocess.extra = {k: v for k, v in subprocess.extra.items() if k != "timeout_retry_count"}
+            subprocess.extra = {
+                k: v for k, v in subprocess.extra.items() if k != "timeout_retry_count"
+            }
             subprocess.save()
 
     def tick(self, *, now: Optional[datetime] = None, limit: Optional[int] = None) -> int:
@@ -103,9 +108,9 @@ class SyncTimeoutScheduler:
         for subprocess in due:
             try:
                 result = self.service.publish_timeout(
-                    order_id=_order_id_for(subprocess.process_id),
+                    order_id=self._order_id_for(subprocess.process_id),
                     subprocess_id=subprocess.id,
-                    event_key=_timeout_event_key(subprocess.id),
+                    event_key=self.timeout_event_key(subprocess.id),
                 )
             except Exception:
                 # Transient failure: reschedule with backoff, retry next sweep.
@@ -119,7 +124,7 @@ class SyncTimeoutScheduler:
         return processed
 
 
-class AsyncTimeoutScheduler:
+class AsyncTimeoutScheduler(_TimeoutSchedulerBase):
     """Asynchronous timeout sweeper using async models with native ``await``."""
 
     def __init__(
@@ -137,19 +142,27 @@ class AsyncTimeoutScheduler:
         self._retry_base_delay = retry_base_delay
         self._retry_max_delay = retry_max_delay
 
-    def _retry_delay(self, attempt: int) -> timedelta:
-        delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
-        return timedelta(seconds=delay)
+    @staticmethod
+    async def _async_order_id_for(process_id: Any) -> Any:
+        """Resolve the order_id for a process_id via the async AsyncOrderProcess row."""
+        process = await AsyncOrderProcess.query().where(AsyncOrderProcess.c.id == process_id).one()
+        if process is None:
+            raise ValueError(f"OrderProcess {process_id} not found")
+        return process.order_id
 
     async def _reschedule(self, subprocess: AsyncOrderSubProcess, moment: datetime) -> None:
         attempt = subprocess.extra.get("timeout_retry_count", 0) + 1
         subprocess.extra = {**subprocess.extra, "timeout_retry_count": attempt}
-        subprocess.timeout_at = moment + self._retry_delay(attempt)
+        subprocess.timeout_at = moment + self.retry_delay(
+            self._retry_base_delay, self._retry_max_delay, attempt
+        )
         await subprocess.save()
 
     async def _clear_retry_state(self, subprocess: AsyncOrderSubProcess) -> None:
         if "timeout_retry_count" in subprocess.extra:
-            subprocess.extra = {k: v for k, v in subprocess.extra.items() if k != "timeout_retry_count"}
+            subprocess.extra = {
+                k: v for k, v in subprocess.extra.items() if k != "timeout_retry_count"
+            }
             await subprocess.save()
 
     async def tick(self, *, now: Optional[datetime] = None, limit: Optional[int] = None) -> int:
@@ -166,11 +179,11 @@ class AsyncTimeoutScheduler:
         processed = 0
         for subprocess in due:
             try:
-                order_id = await _async_order_id_for(subprocess.process_id)
+                order_id = await self._async_order_id_for(subprocess.process_id)
                 result = await self.service.publish_timeout(
                     order_id=order_id,
                     subprocess_id=subprocess.id,
-                    event_key=_timeout_event_key(subprocess.id),
+                    event_key=self.timeout_event_key(subprocess.id),
                 )
             except Exception:
                 await self._reschedule(subprocess, moment)

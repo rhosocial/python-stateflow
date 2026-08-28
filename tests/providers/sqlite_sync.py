@@ -12,7 +12,7 @@ from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
 from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
 from rhosocial.activerecord.connection import BackendGroup
 
-from rhosocial.stateflow import create_tables, drop_tables
+from rhosocial.stateflow import Schema
 from rhosocial.stateflow.models import (
     FlowPath,
     Order,
@@ -65,10 +65,10 @@ class SQLiteSyncProvider(StateflowSyncProvider):
         backend = group.get_backend()
         backend.connect()
         backend.introspect_and_adapt()
-        create_tables(backend)
+        Schema.create_tables(backend)
         return group
 
     def teardown(self, handle: object) -> None:
         backend = handle.get_backend()
-        drop_tables(backend)
+        Schema.drop_tables(backend)
         handle.disconnect()

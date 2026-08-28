@@ -76,7 +76,7 @@ class MySQLSyncProvider(StateflowSyncProvider):
         backend = group.get_backend()
         backend.connect()
         backend.introspect_and_adapt()
-        create_tables(backend)  # requires backend-specific DDL
+        Schema.create_tables(backend)  # requires backend-specific DDL
         return group
 
     def teardown(self, handle):

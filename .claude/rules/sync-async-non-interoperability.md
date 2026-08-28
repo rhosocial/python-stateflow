@@ -17,6 +17,62 @@ Async 路径:  AsyncModel →  AsyncBackend →  AsyncService →  AsyncDelivere
 
 两条路径各自封闭，任何一层都不得跨越。
 
+## 成员签名对等
+
+Sync 和 Async 兄弟类的**成员签名**必须逐字一致——参数名、顺序、种类（positional-only/
+keyword-only）、默认值完全相同。Async 前缀只出现在**类名**上，不出现任何成员方法名里。
+
+### ✅ 正确：显式签名，完全一致
+
+```python
+class SyncOrderDispatcher:
+    def on_event(self, order: Order, subprocess: OrderSubProcess, *, new_status: str, ...):
+        ...
+
+class AsyncOrderDispatcher:
+    async def on_event(self, order: Order, subprocess: OrderSubProcess, *, new_status: str, ...):
+        ...
+```
+
+### ❌ 错误：用 `*args, **kwargs` 兜底
+
+```python
+class AsyncOrderDispatcher:
+    async def on_event(self, *args, **kwargs):  # 签名不一致！
+        return super().on_event(*args, **kwargs)
+```
+
+例外：纯注册/助手方法（无 I/O，如 `register_topic_handler`、`retry_delay`）的 async 版本
+也不是协程——这是正确的，因为它们不做 I/O。
+
+## 禁止模块级函数
+
+所有函数都应放在类内作为静态方法或类方法。模块级只允许导入和类定义。
+
+### ✅ 正确：静态方法在类内
+
+```python
+class Schema:
+    @classmethod
+    def create_tables(cls, backend): ...
+
+class SyncTimeoutScheduler:
+    @staticmethod
+    def _order_id_for(process_id): ...
+
+class _SyncHandlerTopicBase:
+    @staticmethod
+    def load_subprocess_for_outbox(outbox_item): ...
+```
+
+### ❌ 错误：模块级函数
+
+```python
+def create_tables(backend): ...
+def _load_subprocess_for_outbox(outbox_item): ...
+def _order_id_for(process_id): ...
+```
+
 ## 正确用法
 
 ### ✅ 同步路径：全程同步

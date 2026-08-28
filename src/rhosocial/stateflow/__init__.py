@@ -44,7 +44,7 @@ from .registry import (
     SyncHandlerStartTopic,
     UnknownHandlerError,
 )
-from .schema import async_create_tables, async_drop_tables, create_tables, drop_tables
+from .schema import Schema
 from .service import AsyncOrderService, SyncOrderService
 from .timer import AsyncTimeoutScheduler, SyncTimeoutScheduler
 from .types import HandlerResult, ValidationIssue, ValidationResult
@@ -84,6 +84,7 @@ __all__ = [
     "OrderTemplate",
     "OrderTemplateStep",
     "OrderTemplateValidator",
+    "Schema",
     "SimulatedSubProcessHandler",
     "StateflowError",
     "SubProcessDependency",
@@ -100,8 +101,4 @@ __all__ = [
     "UnrecoverableDeliveryError",
     "ValidationIssue",
     "ValidationResult",
-    "async_create_tables",
-    "create_tables",
-    "drop_tables",
-    "async_drop_tables",
 ]

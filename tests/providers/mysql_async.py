@@ -7,7 +7,7 @@ from rhosocial.activerecord.backend.impl.mysql import AsyncMySQLBackend
 from rhosocial.activerecord.backend.impl.mysql.config import MySQLConnectionConfig
 from rhosocial.activerecord.connection import AsyncBackendGroup
 
-from rhosocial.stateflow import async_create_tables, async_drop_tables
+from rhosocial.stateflow import Schema
 from rhosocial.stateflow.models import (
     AsyncFlowPath, AsyncOrder, AsyncOrderEvent, AsyncOrderOutbox,
     AsyncOrderProcess, AsyncOrderSubProcess, AsyncOrderTemplate,
@@ -59,10 +59,10 @@ class MySQLAsyncProvider(StateflowAsyncProvider):
         backend = group.get_backend()
         await backend.connect()
         await backend.introspect_and_adapt()
-        await async_create_tables(backend)
+        await Schema.async_create_tables(backend)
         return group
 
     async def teardown(self, handle: object) -> None:
         backend = handle.get_backend()
-        await async_drop_tables(backend)
+        await Schema.async_drop_tables(backend)
         await handle.disconnect()

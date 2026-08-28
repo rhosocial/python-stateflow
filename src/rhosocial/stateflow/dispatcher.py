@@ -210,19 +210,44 @@ class AsyncOrderDispatcher(_DispatcherBase):
     _event_cls = AsyncOrderEvent
     _outbox_cls = AsyncOrderOutbox
 
-    async def on_event(self, *args, **kwargs) -> DispatchResult:  # type: ignore[override]
-        """Handle a subprocess event asynchronously."""
-        return super().on_event(*args, **kwargs)
+    async def on_event(  # type: ignore[override]
+        self,
+        order: Order,
+        subprocess: OrderSubProcess,
+        *,
+        new_status: str,
+        subprocesses: Sequence[OrderSubProcess],
+        dependencies: Sequence[SubProcessDependency],
+        events: Optional[Sequence[OrderEvent]] = None,
+        event_key: Optional[str] = None,
+        payload: Optional[Dict] = None,
+    ) -> DispatchResult:
+        """Handle a subprocess event asynchronously.
+
+        Signature mirrors :meth:`_DispatcherBase.on_event` exactly — only the
+        ``async def`` nature differs. The async path passes async model
+        instances which are structurally compatible.
+        """
+        return super().on_event(
+            order=order,
+            subprocess=subprocess,
+            new_status=new_status,
+            subprocesses=subprocesses,
+            dependencies=dependencies,
+            events=events,
+            event_key=event_key,
+            payload=payload,
+        )
 
     async def on_timeout(  # type: ignore[override]
         self,
-        order,
-        subprocess,
+        order: Order,
+        subprocess: OrderSubProcess,
         *,
-        subprocesses,
-        dependencies,
-        events=None,
-        event_key=None,
+        subprocesses: Sequence[OrderSubProcess],
+        dependencies: Sequence[SubProcessDependency],
+        events: Optional[Sequence[OrderEvent]] = None,
+        event_key: Optional[str] = None,
     ) -> DispatchResult:
         """Handle a subprocess timeout asynchronously."""
         if not subprocess.timeout_status:
@@ -238,10 +263,21 @@ class AsyncOrderDispatcher(_DispatcherBase):
             payload={"event_type": EVENT_SP_TIMEOUT},
         )
 
-    async def on_rollback(self, *args, **kwargs) -> DispatchResult:  # type: ignore[override]
+    async def on_rollback(  # type: ignore[override]
+        self,
+        order: Order,
+        subprocess: OrderSubProcess,
+        *,
+        events: Optional[Sequence[OrderEvent]] = None,
+        event_key: Optional[str] = None,
+    ) -> DispatchResult:
         """Begin a subprocess rollback asynchronously.
 
-        The base ``on_rollback`` does not call ``self.on_event`` so it is safe
-        to delegate directly.
+        Signature mirrors :meth:`_DispatcherBase.on_rollback` exactly.
         """
-        return super().on_rollback(*args, **kwargs)
+        return super().on_rollback(
+            order=order,
+            subprocess=subprocess,
+            events=events,
+            event_key=event_key,
+        )

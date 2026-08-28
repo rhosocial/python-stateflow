@@ -238,13 +238,65 @@ class AsyncOrderFactory(_FactoryBase):
     _dependency_cls = AsyncSubProcessDependency
     _event_cls = AsyncOrderEvent
 
-    async def create(self, *args, **kwargs) -> OrderInstance:  # type: ignore[override]
-        """Create an order instance from a template asynchronously."""
-        return super().create(*args, **kwargs)
+    async def create(  # type: ignore[override]
+        self,
+        template: OrderTemplate,
+        steps: Sequence[OrderTemplateStep],
+        *,
+        context: Optional[Dict] = None,
+        flow_paths: Optional[Sequence[FlowPath]] = None,
+        skip_steps: Optional[Iterable[str]] = None,
+        start_from: Optional[str] = None,
+    ) -> OrderInstance:
+        """Create an order instance from a template asynchronously.
 
-    async def append_subprocess(self, *args, **kwargs) -> Any:  # type: ignore[override]
-        """Append a dynamic subprocess to an existing process asynchronously."""
-        return super().append_subprocess(*args, **kwargs)
+        Signature mirrors :meth:`_FactoryBase.create` exactly — only the
+        ``async def`` nature differs. The async path passes async model
+        instances which are structurally compatible.
+        """
+        return super().create(
+            template=template,
+            steps=steps,
+            context=context,
+            flow_paths=flow_paths,
+            skip_steps=skip_steps,
+            start_from=start_from,
+        )
+
+    async def append_subprocess(  # type: ignore[override]
+        self,
+        process: Any,
+        existing_subprocesses: Sequence[Any],
+        existing_dependencies: Sequence[Any],
+        *,
+        name: str,
+        handler_class: str,
+        terminal_states: Sequence[str],
+        advance_states: Sequence[str],
+        rollback_states: Optional[Sequence[str]] = None,
+        depends_on: Optional[Sequence[Any]] = None,
+        timeout_seconds: Optional[int] = None,
+        timeout_status: Optional[str] = None,
+        is_reversible: bool = False,
+    ) -> Any:
+        """Append a dynamic subprocess to an existing process asynchronously.
+
+        Signature mirrors :meth:`_FactoryBase.append_subprocess` exactly.
+        """
+        return super().append_subprocess(
+            process=process,
+            existing_subprocesses=existing_subprocesses,
+            existing_dependencies=existing_dependencies,
+            name=name,
+            handler_class=handler_class,
+            terminal_states=terminal_states,
+            advance_states=advance_states,
+            rollback_states=rollback_states,
+            depends_on=depends_on,
+            timeout_seconds=timeout_seconds,
+            timeout_status=timeout_status,
+            is_reversible=is_reversible,
+        )
 
 
 __all__ = [

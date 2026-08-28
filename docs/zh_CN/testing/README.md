@@ -69,7 +69,7 @@ class MySQLSyncProvider(StateflowSyncProvider):
         backend = group.get_backend()
         backend.connect()
         backend.introspect_and_adapt()
-        create_tables(backend)  # 需要后端特定的 DDL
+        Schema.create_tables(backend)  # 需要后端特定的 DDL
         return group
 
     def teardown(self, handle):

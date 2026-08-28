@@ -88,7 +88,7 @@ from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionCo
 from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     SyncOrderFactory, SyncOrderService, SyncTimeoutScheduler,
-    create_tables, Order, OrderTemplate, OrderTemplateStep,
+    Schema, Order, OrderTemplate, OrderTemplateStep,
 )
 
 # 1. 配置模型
@@ -98,7 +98,7 @@ with BackendGroup(name="stateflow", models=[Order, OrderTemplate, OrderTemplateS
     backend = group.get_backend()
     backend.connect()
     backend.introspect_and_adapt()
-    create_tables(backend)
+    Schema.create_tables(backend)
 
     # 2. 定义模板
     template = OrderTemplate(name="purchase", version=1)
@@ -128,7 +128,7 @@ from rhosocial.activerecord.backend.impl.sqlite import AsyncSQLiteBackend
 from rhosocial.activerecord.connection import AsyncBackendGroup
 from rhosocial.stateflow import (
     AsyncOrderFactory, AsyncOrderService, AsyncTimeoutScheduler,
-    async_create_tables, AsyncOrder, AsyncOrderTemplate, AsyncOrderTemplateStep,
+    Schema, AsyncOrder, AsyncOrderTemplate, AsyncOrderTemplateStep,
 )
 
 config = SQLiteConnectionConfig(database=":memory:")
@@ -137,7 +137,7 @@ async with AsyncBackendGroup(name="stateflow", models=[AsyncOrder, AsyncOrderTem
     backend = group.get_backend()
     await backend.connect()
     await backend.introspect_and_adapt()
-    await async_create_tables(backend)
+    await Schema.async_create_tables(backend)
 
     instance = await AsyncOrderFactory().create(template, steps, context={"user_id": "u123"})
     await instance.order.save()

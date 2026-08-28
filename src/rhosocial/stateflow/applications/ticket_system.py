@@ -8,7 +8,7 @@ the QA step and dynamic append of a notification step at runtime.
 Usage (sync):
 
 ```python
-from rhosocial.stateflow import SyncOrderFactory, SyncOrderService, create_tables
+from rhosocial.stateflow import Schema, SyncOrderFactory, SyncOrderService
 from rhosocial.stateflow.applications import TicketSystem
 
 template, steps = TicketSystem.build_template()

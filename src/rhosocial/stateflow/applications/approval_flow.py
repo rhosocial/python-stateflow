@@ -12,7 +12,7 @@ Usage (sync):
 from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.activerecord.backend.impl.sqlite import SQLiteBackend
 from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionConfig
-from rhosocial.stateflow import create_tables, SyncOrderFactory, SyncOrderService
+from rhosocial.stateflow import Schema, SyncOrderFactory, SyncOrderService
 from rhosocial.stateflow.applications import ApprovalFlow
 
 config = SQLiteConnectionConfig(database=":memory:")
@@ -20,7 +20,7 @@ with BackendGroup(name="stateflow", models=ApprovalFlow.models,
                   config=config, backend_class=SQLiteBackend) as group:
     backend = group.get_backend()
     backend.connect(); backend.introspect_and_adapt()
-    create_tables(backend)
+    Schema.create_tables(backend)
 
     template, steps = ApprovalFlow.build_template()
     template.save()

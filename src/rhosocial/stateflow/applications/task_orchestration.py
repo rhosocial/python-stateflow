@@ -11,7 +11,7 @@ reversible. Demonstrates:
 Usage (sync):
 
 ```python
-from rhosocial.stateflow import SyncOrderFactory, SyncOrderService, create_tables
+from rhosocial.stateflow import Schema, SyncOrderFactory, SyncOrderService
 from rhosocial.stateflow.applications import TaskOrchestration
 
 template, steps = TaskOrchestration.build_template()

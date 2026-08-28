@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.impl.sqlite.config import SQLiteConnectionCo
 from rhosocial.activerecord.connection import BackendGroup
 from rhosocial.stateflow import (
     SyncOrderFactory, SyncOrderService,
-    create_tables,
+    Schema,
     Order, OrderTemplate, OrderTemplateStep,
 )
 
@@ -32,7 +32,7 @@ with BackendGroup(name="stateflow", models=models,
     backend = group.get_backend()
     backend.connect()
     backend.introspect_and_adapt()
-    create_tables(backend)
+    Schema.create_tables(backend)
 
     # 2. Define template and steps
     template = OrderTemplate(name="purchase", version=1)
@@ -81,7 +81,7 @@ from rhosocial.activerecord.backend.impl.sqlite import AsyncSQLiteBackend
 from rhosocial.activerecord.connection import AsyncBackendGroup
 from rhosocial.stateflow import (
     AsyncOrderFactory, AsyncOrderService,
-    async_create_tables,
+    Schema,
     AsyncOrder, AsyncOrderTemplate, AsyncOrderTemplateStep,
 )
 
@@ -92,7 +92,7 @@ async with AsyncBackendGroup(name="stateflow", models=[...],
     backend = group.get_backend()
     await backend.connect()
     await backend.introspect_and_adapt()
-    await async_create_tables(backend)
+    await Schema.async_create_tables(backend)
 
     # Async factory creates async model instances
     instance = await AsyncOrderFactory().create(template, steps, context={...})
