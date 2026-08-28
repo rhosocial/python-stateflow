@@ -147,18 +147,31 @@ class OrderSubProcess(UUIDMixin, TimestampMixin, OptimisticLockMixin, ActiveReco
         return set(self.rollback_states)
 
     def can_rollback(self) -> bool:
-        """Return whether this subprocess may begin a rollback now."""
+        """Return whether this subprocess may begin a rollback now.
+
+        A rollback is allowed when the subprocess is reversible, has not
+        already completed or is currently rolling back, and currently sits
+        in a declared rollback_state. A previous failure
+        (rollback_status == failed) is allowed so the rollback can be
+        retried.
+        """
         return (
             self.is_reversible
-            and self.rollback_status == ROLLBACK_STATUS_NOT_REQUIRED
+            and self.rollback_status
+            in (ROLLBACK_STATUS_NOT_REQUIRED, ROLLBACK_STATUS_FAILED)
             and not self.skipped
             and self.status in self.rollback_state_set()
         )
 
     def begin_rollback(self) -> None:
-        """Mark the rollback as in-progress at the current UTC time."""
+        """Mark the rollback as in-progress at the current UTC time.
+
+        Clears any previous rollback_error when re-initiating a retry.
+        """
         self.rollback_status = ROLLBACK_STATUS_RUNNING
         self.rollback_started_at = datetime.now(timezone.utc)
+        if self.rollback_error is not None:
+            self.rollback_error = None
 
     def complete_rollback(self) -> None:
         """Mark the rollback as completed at the current UTC time."""
@@ -295,18 +308,31 @@ class AsyncOrderSubProcess(UUIDMixin, TimestampMixin, OptimisticLockMixin, Async
         return set(self.rollback_states)
 
     def can_rollback(self) -> bool:
-        """Return whether this subprocess may begin a rollback now."""
+        """Return whether this subprocess may begin a rollback now.
+
+        A rollback is allowed when the subprocess is reversible, has not
+        already completed or is currently rolling back, and currently sits
+        in a declared rollback_state. A previous failure
+        (rollback_status == failed) is allowed so the rollback can be
+        retried.
+        """
         return (
             self.is_reversible
-            and self.rollback_status == ROLLBACK_STATUS_NOT_REQUIRED
+            and self.rollback_status
+            in (ROLLBACK_STATUS_NOT_REQUIRED, ROLLBACK_STATUS_FAILED)
             and not self.skipped
             and self.status in self.rollback_state_set()
         )
 
     def begin_rollback(self) -> None:
-        """Mark the rollback as in-progress at the current UTC time."""
+        """Mark the rollback as in-progress at the current UTC time.
+
+        Clears any previous rollback_error when re-initiating a retry.
+        """
         self.rollback_status = ROLLBACK_STATUS_RUNNING
         self.rollback_started_at = datetime.now(timezone.utc)
+        if self.rollback_error is not None:
+            self.rollback_error = None
 
     def complete_rollback(self) -> None:
         """Mark the rollback as completed at the current UTC time."""

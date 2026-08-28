@@ -196,7 +196,8 @@ Standard implementation of the `handler_rollback` topic:
 2. `handler.rollback()` → `HandlerResult`
 3. If result has status → `service.publish_event()` to advance state
 4. `subprocess.complete_rollback()` + save
-5. On exception → `fail_rollback(error)` + create `sp_rollback_failed` event
+5. On retryable exception → return `False` (outbox backoff retry), record error in `rollback_error`
+6. On unrecoverable exception → after max retries, `fail_rollback(error)` + create `sp_rollback_failed` event
 
 ## Rollback Lifecycle
 
@@ -209,15 +210,26 @@ flowchart TD
     E --> F{"Result?"}
     F -->|Success + has status| G["publish_event(result.status)<br/>advance subprocess state"]
     F -->|Success + no status| H["No state transition"]
-    F -->|Exception| I["fail_rollback(error)<br/>+ sp_rollback_failed event"]
-    G --> J["complete_rollback()<br/>rollback_status = completed"]
-    H --> J
-    I --> K["rollback_status = failed<br/>rollback_error recorded"]
+    F -->|Exception (retryable)| I["return False → outbox backoff retry<br/>rollback_error recorded<br/>rollback_status stays running"]
+    F -->|Exception (exhausted)| J["fail_rollback(error)<br/>+ sp_rollback_failed event"]
+    G --> K["complete_rollback()<br/>rollback_status = completed"]
+    H --> K
+    I --> L["Retries exhausted?"]
+    L -->|No| D
+    L -->|Yes| J
+    J --> M["rollback_status = failed<br/>rollback_error recorded"]
 ```
 
-`can_rollback()` requires: `is_reversible=True` + `rollback_status=not_required` + current status is in `rollback_states`.
+### Retry Policy
 
-Idempotent: repeating `publish_rollback` with the same `event_key` → `duplicate=True`.
+- **Retryable exception**: when `handler.rollback()` raises, the topic returns `False` and the outbox deliverer retries with exponential backoff (`retry_count++` + `next_retry_at`)
+- **Max attempts**: `SyncHandlerRollbackTopic` / `AsyncHandlerRollbackTopic` `max_rollback_retries` parameter (default 3)
+- **Permanent failure**: beyond the limit, `rollback_status = failed`, `rollback_error` recorded, `sp_rollback_failed` event emitted
+- **Manual recovery**: `can_rollback()` now allows `rollback_status == failed`, so `publish_rollback` can be re-invoked (operator retries after fixing the root cause)
+
+### Idempotency
+
+Repeating `publish_rollback` with the same `event_key` → `duplicate=True`.
 
 ## Timeout Scheduling
 
@@ -231,10 +243,18 @@ Idempotent: repeating `publish_rollback` with the same `event_key` → `duplicat
 `SyncTimeoutScheduler` / `AsyncTimeoutScheduler`:
 
 ```python
-scheduler = SyncTimeoutScheduler(service)
+scheduler = SyncTimeoutScheduler(service, retry_base_delay=60.0, retry_max_delay=3600.0)
 processed = scheduler.tick()  # scan due subprocesses → service.publish_timeout
 ```
 
 - Query: `skipped == False AND timeout_at <= now`
 - Each subprocess handled in its own transaction; a single failure doesn't affect others
 - `limit` parameter caps the number of items per sweep
+
+### Idempotency and Retry
+
+Each timeout uses a deterministic `event_key` (`timeout:{subprocess_id}`), making `publish_timeout` idempotent:
+
+- **Success**: the subprocess transitions to `timeout_status`. A subsequent sweep finds it again → `duplicate=True`, skipped.
+- **Failure**: the scheduler resets `timeout_at` into the future with exponential backoff (`base * 2^attempt`, capped at `retry_max_delay`), so the next sweep retries instead of hot-looping.
+- **Retry count**: recorded in `subprocess.extra["timeout_retry_count"]`, cleared on success.

@@ -157,7 +157,7 @@ def test_handler_rollback_topic_completes_lifecycle(backend_group, reversible_in
 
 
 def test_handler_rollback_topic_records_failure_on_exception(backend_group, reversible_instance):
-    """If handler.rollback() raises, the topic marks rollback failed and records the error."""
+    """If handler.rollback() raises, the topic retries via outbox until max_rollback_retries, then marks failed."""
     service = SyncOrderService()
     inventory = reversible_instance.get_subprocess("inventory")
     _advance_to_failed(service, reversible_instance, inventory)
@@ -171,14 +171,27 @@ def test_handler_rollback_topic_records_failure_on_exception(backend_group, reve
 
     registry = HandlerRegistry()
     registry.register("tests.InventoryHandler", BoomHandler)
-    topic = SyncHandlerRollbackTopic(registry, service)
+    topic = SyncHandlerRollbackTopic(registry, service, max_rollback_retries=3)
 
     start_result = service.publish_rollback(
         order_id=reversible_instance.order.id, subprocess_id=inventory.id,
     )
-    ok = topic(start_result.outbox_items[0])
+    outbox_item = start_result.outbox_items[0]
 
-    assert ok is True  # the deliverer treats this as delivered (error was recorded)
+    # First two attempts: retryable (returns False). The outbox deliverer would
+    # increment retry_count between deliveries; simulate that here.
+    for attempt in range(1, 3):
+        outbox_item.retry_count = attempt - 1
+        ok = topic(outbox_item)
+        assert ok is False, f"attempt {attempt} should be retryable"
+        reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == inventory.id).one()
+        assert reloaded.rollback_status == ROLLBACK_STATUS_RUNNING, f"attempt {attempt} should keep running"
+        assert reloaded.rollback_error is not None
+
+    # Third attempt: retry_count=2 → 2+1 >= 3 → permanent failure
+    outbox_item.retry_count = 2
+    ok = topic(outbox_item)
+    assert ok is True  # the deliverer treats this as handled (error was recorded permanently)
     reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == inventory.id).one()
     assert reloaded.rollback_status == ROLLBACK_STATUS_FAILED
     assert reloaded.rollback_error is not None
@@ -259,3 +272,45 @@ def test_rollback_cannot_be_initiated_twice(backend_group, reversible_instance):
             order_id=reversible_instance.order.id, subprocess_id=inventory.id,
             event_key="rollback-once-2",
         )
+
+
+def test_rollback_can_be_retried_after_failure(backend_group, reversible_instance):
+    """After a permanent rollback failure, publish_rollback can be retried.
+
+    ``can_rollback`` allows ``rollback_status == failed``, so an operator can
+    re-initiate the rollback (e.g. after fixing the root cause).
+    """
+    service = SyncOrderService()
+    inventory = reversible_instance.get_subprocess("inventory")
+    _advance_to_failed(service, reversible_instance, inventory)
+
+    class BoomHandler(SyncSubProcessHandler):
+        def start(self):
+            return HandlerResult(status="locked")
+
+        def rollback(self):
+            raise RuntimeError("compensation failed")
+
+    registry = HandlerRegistry()
+    registry.register("tests.InventoryHandler", BoomHandler)
+    # max_rollback_retries=1 → the first failure is permanent.
+    topic = SyncHandlerRollbackTopic(registry, service, max_rollback_retries=1)
+
+    start_result = service.publish_rollback(
+        order_id=reversible_instance.order.id, subprocess_id=inventory.id,
+        event_key="rb-retry-1",
+    )
+    topic(start_result.outbox_items[0])
+    reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == inventory.id).one()
+    assert reloaded.rollback_status == ROLLBACK_STATUS_FAILED
+    assert reloaded.can_rollback()  # failed allows retry
+
+    # Re-initiate rollback — should be allowed now.
+    retry_result = service.publish_rollback(
+        order_id=reversible_instance.order.id, subprocess_id=inventory.id,
+        event_key="rb-retry-2",
+    )
+    assert retry_result.duplicate is False
+    reloaded2 = OrderSubProcess.query().where(OrderSubProcess.c.id == inventory.id).one()
+    assert reloaded2.rollback_status == ROLLBACK_STATUS_RUNNING
+    assert reloaded2.rollback_error is None  # cleared on retry begin

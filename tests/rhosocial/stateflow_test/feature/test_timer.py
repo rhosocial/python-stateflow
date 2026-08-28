@@ -155,3 +155,81 @@ def test_tick_respects_limit(backend_group, persisted_instance):
     processed = scheduler.tick(limit=0)
     assert processed == 0
 
+
+def test_publish_timeout_is_idempotent_with_event_key(backend_group, persisted_instance):
+    """Re-applying the same timeout event_key returns duplicate=True."""
+    service = SyncOrderService()
+    inventory = persisted_instance.get_subprocess("inventory")
+    service.publish_event(
+        order_id=persisted_instance.order.id,
+        subprocess_id=inventory.id,
+        new_status="locked",
+        event_key="inv-1",
+    )
+    payment = persisted_instance.get_subprocess("payment")
+    payment_db = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    payment_db.timeout_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    payment_db.save()
+
+    first = service.publish_timeout(
+        order_id=persisted_instance.order.id,
+        subprocess_id=payment.id,
+        event_key="timeout:payment-1",
+    )
+    assert first.duplicate is False
+    assert first.event.to_status == "timeout"
+
+    second = service.publish_timeout(
+        order_id=persisted_instance.order.id,
+        subprocess_id=payment.id,
+        event_key="timeout:payment-1",
+    )
+    assert second.duplicate is True
+    assert second.event.id == first.event.id
+
+
+def test_tick_retries_failed_timeout_with_backoff(backend_group, persisted_instance):
+    """A failed timeout is rescheduled (timeout_at pushed into the future) so the next sweep retries."""
+    service = SyncOrderService()
+    inventory = persisted_instance.get_subprocess("inventory")
+    service.publish_event(
+        order_id=persisted_instance.order.id,
+        subprocess_id=inventory.id,
+        new_status="locked",
+        event_key="inv-retry-1",
+    )
+    payment = persisted_instance.get_subprocess("payment")
+    payment_db = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    payment_db.timeout_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    payment_db.save()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("simulated timeout failure")
+
+    scheduler = SyncTimeoutScheduler(service, retry_base_delay=60.0)
+    original = service.publish_timeout
+    service.publish_timeout = boom  # monkeypatch instance method
+    try:
+        processed = scheduler.tick()
+    finally:
+        service.publish_timeout = original
+    assert processed == 0
+
+    # The subprocess must be rescheduled into the future (backoff), not hot-looped.
+    rescheduled = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    assert rescheduled.timeout_at is not None
+    assert rescheduled.timeout_at > datetime.now(timezone.utc)
+    assert rescheduled.extra.get("timeout_retry_count") == 1
+
+    # A second failure reschedules with a longer delay (exponential backoff).
+    rescheduled.timeout_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    rescheduled.save()
+    service.publish_timeout = boom
+    try:
+        scheduler.tick()
+    finally:
+        service.publish_timeout = original
+    rescheduled2 = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
+    assert rescheduled2.extra.get("timeout_retry_count") == 2
+    assert rescheduled2.timeout_at > rescheduled.timeout_at
+

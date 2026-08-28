@@ -112,8 +112,14 @@ class SyncOrderService:
         self,
         order_id: Any,
         subprocess_id: Any,
+        *,
+        event_key: Optional[str] = None,
     ) -> DispatchResult:
-        """Atomically apply a subprocess timeout transition."""
+        """Atomically apply a subprocess timeout transition.
+
+        ``event_key`` makes the timeout idempotent so a sweeper can safely
+        retry a failed timeout without re-applying the transition.
+        """
         from rhosocial.activerecord.backend.errors import DatabaseError
 
         backend = Order.backend()
@@ -155,7 +161,11 @@ class SyncOrderService:
                 subprocesses=subprocesses,
                 dependencies=dependencies,
                 events=existing_events,
+                event_key=event_key,
             )
+
+            if result.duplicate:
+                return result
 
             try:
                 self._persist(result, order=order, subprocess=subprocess)
@@ -303,8 +313,14 @@ class AsyncOrderService:
         self,
         order_id: Any,
         subprocess_id: Any,
+        *,
+        event_key: Optional[str] = None,
     ) -> DispatchResult:
-        """Atomically apply a subprocess timeout transition."""
+        """Atomically apply a subprocess timeout transition.
+
+        ``event_key`` makes the timeout idempotent so a sweeper can safely
+        retry a failed timeout without re-applying the transition.
+        """
         from rhosocial.activerecord.backend.errors import DatabaseError
 
         backend = AsyncOrder.backend()
@@ -342,7 +358,11 @@ class AsyncOrderService:
                 subprocesses=subprocesses,
                 dependencies=dependencies,
                 events=existing_events,
+                event_key=event_key,
             )
+
+            if result.duplicate:
+                return result
 
             try:
                 await self._persist(result, order=order, subprocess=subprocess)

@@ -215,13 +215,26 @@ class SyncHandlerRollbackTopic:
     Resolves the handler, calls ``rollback()``, publishes the result status
     through :class:`~rhosocial.stateflow.service.SyncOrderService`, and marks
     the subprocess's ``rollback_status`` as ``completed`` or ``failed``.
+
+    Retry semantics: if ``handler.rollback()`` raises a retryable exception
+    the topic returns ``False`` so the outbox deliverer retries with
+    exponential backoff. Only after ``max_rollback_retries`` attempts is the
+    rollback marked ``failed`` permanently (and a ``sp_rollback_failed``
+    event is recorded).
     """
 
     topic = OUTBOX_TOPIC_HANDLER_ROLLBACK
 
-    def __init__(self, registry: HandlerRegistry, service: Any) -> None:
+    def __init__(
+        self,
+        registry: HandlerRegistry,
+        service: Any,
+        *,
+        max_rollback_retries: int = 3,
+    ) -> None:
         self.registry = registry
         self.service = service
+        self.max_rollback_retries = max_rollback_retries
 
     def __call__(self, outbox_item: OrderOutbox) -> bool:
         from .deliverer import UnrecoverableDeliveryError
@@ -238,9 +251,17 @@ class SyncHandlerRollbackTopic:
         try:
             result = handler.rollback()
         except Exception as exc:
-            error_payload = {"error": str(exc), "type": type(exc).__name__}
-            self._mark_failed(subprocess, order_id, error_payload)
-            return True
+            # outbox_item.retry_count is 0 on the first attempt and is
+            # incremented by the deliverer after each retryable False.
+            attempt = outbox_item.retry_count + 1
+            error_payload = {"error": str(exc), "type": type(exc).__name__, "attempt": attempt}
+            if attempt >= self.max_rollback_retries:
+                self._mark_failed(subprocess, order_id, error_payload)
+                return True
+            # Record the error for observability but keep rollback running;
+            # return False so the outbox retries with backoff.
+            self._record_retryable_error(subprocess, error_payload)
+            return False
 
         if result is not None and result.status:
             self.service.publish_event(
@@ -259,8 +280,21 @@ class SyncHandlerRollbackTopic:
         return True
 
     @staticmethod
+    def _record_retryable_error(subprocess: OrderSubProcess, error_payload: dict) -> None:
+        """Record a retryable rollback error without failing permanently."""
+        backend = OrderOutbox.backend()
+        with backend.transaction():
+            refreshed = (
+                OrderSubProcess.query().where(OrderSubProcess.c.id == subprocess.id).one()
+            )
+            if refreshed is None:
+                return
+            refreshed.rollback_error = error_payload
+            refreshed.save()
+
+    @staticmethod
     def _mark_failed(subprocess: OrderSubProcess, order_id: Any, error_payload: dict) -> None:
-        """Record a rollback failure on the subprocess and persist it."""
+        """Record a permanent rollback failure on the subprocess and persist it."""
         backend = OrderOutbox.backend()
         with backend.transaction():
             refreshed = (
@@ -280,13 +314,25 @@ class AsyncHandlerRollbackTopic:
     """Default ``handler_rollback`` topic callable for the async deliverer.
 
     Uses async models with native ``await`` for all DB operations.
+
+    Retry semantics mirror :class:`SyncHandlerRollbackTopic`: retryable
+    exceptions return ``False`` for outbox backoff retry; after
+    ``max_rollback_retries`` attempts the rollback is marked ``failed``
+    permanently.
     """
 
     topic = OUTBOX_TOPIC_HANDLER_ROLLBACK
 
-    def __init__(self, registry: HandlerRegistry, service: Any) -> None:
+    def __init__(
+        self,
+        registry: HandlerRegistry,
+        service: Any,
+        *,
+        max_rollback_retries: int = 3,
+    ) -> None:
         self.registry = registry
         self.service = service
+        self.max_rollback_retries = max_rollback_retries
 
     async def __call__(self, outbox_item: AsyncOrderOutbox) -> bool:
         from .deliverer import UnrecoverableDeliveryError
@@ -303,9 +349,13 @@ class AsyncHandlerRollbackTopic:
         try:
             result = await handler.rollback()
         except Exception as exc:
-            error_payload = {"error": str(exc), "type": type(exc).__name__}
-            await self._mark_failed(subprocess, order_id, error_payload)
-            return True
+            attempt = outbox_item.retry_count + 1
+            error_payload = {"error": str(exc), "type": type(exc).__name__, "attempt": attempt}
+            if attempt >= self.max_rollback_retries:
+                await self._mark_failed(subprocess, order_id, error_payload)
+                return True
+            await self._record_retryable_error(subprocess, error_payload)
+            return False
 
         if result is not None and result.status:
             await self.service.publish_event(
@@ -324,8 +374,21 @@ class AsyncHandlerRollbackTopic:
         return True
 
     @staticmethod
+    async def _record_retryable_error(subprocess: AsyncOrderSubProcess, error_payload: dict) -> None:
+        """Record a retryable rollback error without failing permanently."""
+        backend = AsyncOrderOutbox.backend()
+        async with backend.transaction():
+            refreshed = await (
+                AsyncOrderSubProcess.query().where(AsyncOrderSubProcess.c.id == subprocess.id).one()
+            )
+            if refreshed is None:
+                return
+            refreshed.rollback_error = error_payload
+            await refreshed.save()
+
+    @staticmethod
     async def _mark_failed(subprocess: AsyncOrderSubProcess, order_id: Any, error_payload: dict) -> None:
-        """Record a rollback failure on the async subprocess and persist it."""
+        """Record a permanent rollback failure on the async subprocess and persist it."""
         backend = AsyncOrderOutbox.backend()
         async with backend.transaction():
             refreshed = await (

@@ -108,8 +108,14 @@ class _DispatcherBase:
         subprocesses: Sequence[OrderSubProcess],
         dependencies: Sequence[SubProcessDependency],
         events: Optional[Sequence[OrderEvent]] = None,
+        event_key: Optional[str] = None,
     ) -> DispatchResult:
-        """Handle a subprocess timeout."""
+        """Handle a subprocess timeout.
+
+        ``event_key`` makes the timeout idempotent — a repeated call with the
+        same key returns ``duplicate=True`` instead of re-applying the
+        transition, so failed timeouts can be safely retried by the sweeper.
+        """
         if not subprocess.timeout_status:
             raise InvalidStateTransitionError("Subprocess has no timeout_status")
         return self.on_event(
@@ -119,6 +125,7 @@ class _DispatcherBase:
             subprocesses=subprocesses,
             dependencies=dependencies,
             events=events,
+            event_key=event_key,
             payload={"event_type": EVENT_SP_TIMEOUT},
         )
 
@@ -215,6 +222,7 @@ class AsyncOrderDispatcher(_DispatcherBase):
         subprocesses,
         dependencies,
         events=None,
+        event_key=None,
     ) -> DispatchResult:
         """Handle a subprocess timeout asynchronously."""
         if not subprocess.timeout_status:
@@ -226,6 +234,7 @@ class AsyncOrderDispatcher(_DispatcherBase):
             subprocesses=subprocesses,
             dependencies=dependencies,
             events=events,
+            event_key=event_key,
             payload={"event_type": EVENT_SP_TIMEOUT},
         )
 

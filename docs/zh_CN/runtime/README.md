@@ -196,7 +196,8 @@ registry.register("app.handlers.PaymentHandler", PaymentHandler)
 2. `handler.rollback()` → `HandlerResult`
 3. 若 result 有 status → `service.publish_event()` 推进状态
 4. `subprocess.complete_rollback()` + save
-5. 异常 → `fail_rollback(error)` + 创建 `sp_rollback_failed` 事件
+5. 异常 → 可重试：返回 `False`（outbox 退避重试），`rollback_error` 记录错误
+6. 异常 → 不可恢复：超过最大重试次数后 `fail_rollback(error)` + 创建 `sp_rollback_failed` 事件
 
 ## 回滚生命周期
 
@@ -209,15 +210,26 @@ flowchart TD
     E --> F{"结果?"}
     F -->|成功 + 有 status| G["publish_event(result.status)<br/>推进子流程状态"]
     F -->|成功 + 无 status| H["无状态转换"]
-    F -->|异常| I["fail_rollback(error)<br/>+ sp_rollback_failed 事件"]
-    G --> J["complete_rollback()<br/>rollback_status = completed"]
-    H --> J
-    I --> K["rollback_status = failed<br/>rollback_error 记录"]
+    F -->|异常（可重试）| I["return False → outbox 退避重试<br/>rollback_error 记录<br/>rollback_status 保持 running"]
+    F -->|异常（超出重试上限）| J["fail_rollback(error)<br/>+ sp_rollback_failed 事件"]
+    G --> K["complete_rollback()<br/>rollback_status = completed"]
+    H --> K
+    I --> L["重试次数达到上限?"]
+    L -->|否| D
+    L -->|是| J
+    J --> M["rollback_status = failed<br/>rollback_error 记录"]
 ```
 
-`can_rollback()` 条件：`is_reversible=True` + `rollback_status=not_required` + 当前状态在 `rollback_states` 中。
+### 重试策略
 
-幂等：重复 `publish_rollback` 同一 `event_key` → `duplicate=True`。
+- **可重试异常**：`handler.rollback()` 抛出异常时，topic 返回 `False`，outbox 投递器按指数退避重试（`retry_count++` + `next_retry_at`）
+- **最大重试次数**：`SyncHandlerRollbackTopic` / `AsyncHandlerRollbackTopic` 的 `max_rollback_retries` 参数（默认 3 次）
+- **永久失败**：超出上限后标记 `rollback_status = failed`，记录 `rollback_error`，生成 `sp_rollback_failed` 事件
+- **人工介入恢复**：`can_rollback()` 允许 `rollback_status == failed`，因此 `publish_rollback` 可再次调用重试（修复根因后由操作员触发）
+
+### 幂等
+
+重复 `publish_rollback` 同一 `event_key` → `duplicate=True`。
 
 ## 超时调度 (Timer)
 
@@ -231,10 +243,18 @@ flowchart TD
 `SyncTimeoutScheduler` / `AsyncTimeoutScheduler`：
 
 ```python
-scheduler = SyncTimeoutScheduler(service)
+scheduler = SyncTimeoutScheduler(service, retry_base_delay=60.0, retry_max_delay=3600.0)
 processed = scheduler.tick()  # 扫描到期子流程 → service.publish_timeout
 ```
 
 - 查询：`skipped == False AND timeout_at <= now`
 - 每个子流程独立事务处理，单个失败不影响其他
+
+### 幂等与重试
+
+每个超时使用确定性 `event_key`（`timeout:{subprocess_id}`），使 `publish_timeout` 幂等：
+
+- **成功**：子流程转入 `timeout_status`。之后再次被扫描到时返回 `duplicate=True`，调度器跳过
+- **失败**：调度器把 `timeout_at` 重置到未来（指数退避：`base * 2^attempt`，上限 `retry_max_delay`），下一轮扫描重试，避免热循环
+- **重试次数**：记录在 `subprocess.extra["timeout_retry_count"]`，成功后清除
 - `limit` 参数控制单次扫描上限
