@@ -1,13 +1,13 @@
 # src/rhosocial/stateflow/models/order_event/query.py
 """Query helpers for OrderEvent."""
 
-from .model import OrderEvent
+from rhosocial.stateflow.models.order_event.model import AsyncOrderEvent, OrderEvent
 
+class _OrderEventQueryBase:
+    """Shared query building logic for OrderEvent and AsyncOrderEvent siblings."""
 
-class OrderEventQuery:
-    """Query helpers for OrderEvent."""
+    model = None
 
-    model = OrderEvent
 
     @classmethod
     def by_order_id(cls, order_id):
@@ -40,3 +40,14 @@ class OrderEventQuery:
     @classmethod
     def caused_by(cls, causation_id):
         return cls.model.query().where(cls.model.c.causation_id == causation_id)
+
+class OrderEventQuery(_OrderEventQueryBase):
+    """Query helpers for OrderEvent."""
+
+    model = OrderEvent
+
+
+class AsyncOrderEventQuery(_OrderEventQueryBase):
+    """Async query helpers for AsyncOrderEvent."""
+
+    model = AsyncOrderEvent

@@ -1,14 +1,14 @@
 # src/rhosocial/stateflow/models/order_template/query.py
 """Query helpers for OrderTemplate."""
 
-from ...types import TEMPLATE_STATUS_DRAFT, TEMPLATE_STATUS_PUBLISHED
-from .model import OrderTemplate
+from rhosocial.stateflow.types import TEMPLATE_STATUS_DRAFT, TEMPLATE_STATUS_PUBLISHED
+from rhosocial.stateflow.models.order_template.model import AsyncOrderTemplate, OrderTemplate
 
+class _OrderTemplateQueryBase:
+    """Shared query building logic for OrderTemplate and AsyncOrderTemplate siblings."""
 
-class OrderTemplateQuery:
-    """Query helpers for OrderTemplate."""
+    model = None
 
-    model = OrderTemplate
 
     @classmethod
     def by_name(cls, name):
@@ -29,3 +29,14 @@ class OrderTemplateQuery:
     @classmethod
     def by_name_version(cls, name, version):
         return cls.by_name(name).where(cls.model.c.version == version)
+
+class OrderTemplateQuery(_OrderTemplateQueryBase):
+    """Query helpers for OrderTemplate."""
+
+    model = OrderTemplate
+
+
+class AsyncOrderTemplateQuery(_OrderTemplateQueryBase):
+    """Async query helpers for AsyncOrderTemplate."""
+
+    model = AsyncOrderTemplate

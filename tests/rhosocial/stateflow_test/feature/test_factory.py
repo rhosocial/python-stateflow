@@ -61,5 +61,5 @@ def test_append_subprocess_assigns_dynamic_source_and_sequence():
     )
 
     assert new_subprocess.step_name == "notify"
-    assert new_subprocess.source == "dynamic"
+    assert new_subprocess.source == "stateflow:source:dynamic"
     assert new_subprocess.sequence == 3

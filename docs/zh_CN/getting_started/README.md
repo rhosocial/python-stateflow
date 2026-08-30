@@ -71,7 +71,7 @@ with BackendGroup(name="stateflow", models=models,
         event_key="inventory-1",   # 幂等键
     )
     # result.started_subprocesses → ["payment"]（下游自动启动）
-    # result.outbox_items → [handler_start outbox for payment]
+    # result.outbox_items → [stateflow:topic:handler_start outbox for payment]
 ```
 
 ## 异步路径

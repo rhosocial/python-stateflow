@@ -11,21 +11,14 @@ synchronous ``save()`` / ``query()``; async handlers use async models
 import importlib
 from typing import Any, Dict, Optional, Type, Union
 
-from .exceptions import StateflowError
-from .handlers import AsyncSubProcessHandler, SyncSubProcessHandler
-from .models import (
-    AsyncOrder,
-    AsyncOrderEvent,
-    AsyncOrderOutbox,
-    AsyncOrderProcess,
-    AsyncOrderSubProcess,
-    Order,
-    OrderEvent,
-    OrderOutbox,
-    OrderProcess,
-    OrderSubProcess,
-)
-from .types import OUTBOX_TOPIC_HANDLER_ROLLBACK, OUTBOX_TOPIC_HANDLER_START
+from rhosocial.stateflow.exceptions import StateflowError
+from rhosocial.stateflow.handlers import AsyncSubProcessHandler, SyncSubProcessHandler
+from rhosocial.stateflow.models.order import AsyncOrder, Order
+from rhosocial.stateflow.models.order_event import AsyncOrderEvent, OrderEvent
+from rhosocial.stateflow.models.order_outbox import AsyncOrderOutbox, OrderOutbox
+from rhosocial.stateflow.models.order_process import AsyncOrderProcess, OrderProcess
+from rhosocial.stateflow.models.order_subprocess import AsyncOrderSubProcess, OrderSubProcess
+from rhosocial.stateflow.types import OUTBOX_TOPIC_HANDLER_ROLLBACK, OUTBOX_TOPIC_HANDLER_START
 
 HandlerCls = Union[Type[SyncSubProcessHandler], Type[AsyncSubProcessHandler]]
 

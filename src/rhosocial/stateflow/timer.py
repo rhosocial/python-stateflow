@@ -20,7 +20,8 @@ so ``publish_timeout`` is idempotent:
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from .models import AsyncOrderProcess, AsyncOrderSubProcess, OrderProcess, OrderSubProcess
+from rhosocial.stateflow.models.order_process import AsyncOrderProcess, OrderProcess
+from rhosocial.stateflow.models.order_subprocess import AsyncOrderSubProcess, OrderSubProcess
 
 
 class _TimeoutSchedulerBase:

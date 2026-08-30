@@ -1,13 +1,13 @@
 # src/rhosocial/stateflow/models/flow_path/query.py
 """Query helpers for FlowPath."""
 
-from .model import FlowPath
+from rhosocial.stateflow.models.flow_path.model import AsyncFlowPath, FlowPath
 
+class _FlowPathQueryBase:
+    """Shared query building logic for FlowPath and AsyncFlowPath siblings."""
 
-class FlowPathQuery:
-    """Query helpers for FlowPath."""
+    model = None
 
-    model = FlowPath
 
     @classmethod
     def by_template_id(cls, template_id):
@@ -23,3 +23,14 @@ class FlowPathQuery:
         if template_id is not None:
             query = query.where(cls.model.c.template_id == template_id)
         return query
+
+class FlowPathQuery(_FlowPathQueryBase):
+    """Query helpers for FlowPath."""
+
+    model = FlowPath
+
+
+class AsyncFlowPathQuery(_FlowPathQueryBase):
+    """Async query helpers for AsyncFlowPath."""
+
+    model = AsyncFlowPath

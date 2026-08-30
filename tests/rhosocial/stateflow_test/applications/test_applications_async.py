@@ -63,7 +63,7 @@ class TestApprovalFlowAsync:
                                 new_status="published", event_key="ap-async-publish")
 
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     @pytest.mark.asyncio
     async def test_idempotent(self, async_backend_group):
@@ -125,7 +125,7 @@ class TestTicketSystemAsync:
                                 subprocess_id=instance.get_subprocess("close").id,
                                 new_status="closed", event_key="tk-async-close")
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +161,7 @@ class TestTaskOrchestrationAsync:
                                 subprocess_id=instance.get_subprocess("deploy").id,
                                 new_status="deployed", event_key="to-async-deploy")
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     @pytest.mark.asyncio
     async def test_timeout(self, async_backend_group):
@@ -227,7 +227,7 @@ class TestAgentPlanAsync:
                                 subprocess_id=instance.get_subprocess("verify_result").id,
                                 new_status="verified", event_key="ag-async-verify")
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     @pytest.mark.asyncio
     async def test_failure_and_rollback(self, async_backend_group):
@@ -256,9 +256,9 @@ class TestAgentPlanAsync:
 
         result = await svc.publish_rollback(order_id=order_id, subprocess_id=exec_sp.id,
                                             event_key="ag2-async-rb")
-        assert result.event.event_type == "sp_rollback_started"
+        assert result.event.event_type == "stateflow:event:sp_rollback_started"
 
         reloaded = await AsyncOrderSubProcess.query().where(
             AsyncOrderSubProcess.c.id == exec_sp.id
         ).one()
-        assert reloaded.rollback_status == "running"
+        assert reloaded.rollback_status == "stateflow:rollback:running"

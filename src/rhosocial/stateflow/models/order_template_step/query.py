@@ -1,13 +1,13 @@
 # src/rhosocial/stateflow/models/order_template_step/query.py
 """Query helpers for OrderTemplateStep."""
 
-from .model import OrderTemplateStep
+from rhosocial.stateflow.models.order_template_step.model import AsyncOrderTemplateStep, OrderTemplateStep
 
+class _OrderTemplateStepQueryBase:
+    """Shared query building logic for OrderTemplateStep and AsyncOrderTemplateStep siblings."""
 
-class OrderTemplateStepQuery:
-    """Query helpers for OrderTemplateStep."""
+    model = None
 
-    model = OrderTemplateStep
 
     @classmethod
     def by_template_id(cls, template_id):
@@ -27,3 +27,14 @@ class OrderTemplateStepQuery:
         if template_id is not None:
             query = query.where(cls.model.c.template_id == template_id)
         return query
+
+class OrderTemplateStepQuery(_OrderTemplateStepQueryBase):
+    """Query helpers for OrderTemplateStep."""
+
+    model = OrderTemplateStep
+
+
+class AsyncOrderTemplateStepQuery(_OrderTemplateStepQueryBase):
+    """Async query helpers for AsyncOrderTemplateStep."""
+
+    model = AsyncOrderTemplateStep

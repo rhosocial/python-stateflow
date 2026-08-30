@@ -62,7 +62,7 @@ class TestApprovalFlow:
                           new_status="published", event_key="ap-publish-1")
 
         order = Order.query().where(Order.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     def test_reject_and_rollback(self, backend_group):
         """review rejected → rollback review."""
@@ -89,10 +89,10 @@ class TestApprovalFlow:
 
         result = svc.publish_rollback(order_id=order_id, subprocess_id=review_sp.id,
                                       event_key="ap2-rollback-1")
-        assert result.event.event_type == "sp_rollback_started"
+        assert result.event.event_type == "stateflow:event:sp_rollback_started"
 
         reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == review_sp.id).one()
-        assert reloaded.rollback_status == "running"
+        assert reloaded.rollback_status == "stateflow:rollback:running"
 
     def test_idempotent(self, backend_group):
         """Duplicate event_key returns duplicate=True."""
@@ -160,7 +160,7 @@ class TestTicketSystem:
         svc.publish_event(order_id=order_id,
                           subprocess_id=instance.get_subprocess("close").id,
                           new_status="closed", event_key="tk-close-1")
-        assert Order.query().where(Order.c.id == order_id).one().status == "completed"
+        assert Order.query().where(Order.c.id == order_id).one().status == "stateflow:order:completed"
 
     def test_skip_qa(self, backend_group):
         """Skip qa_verify → dev_fix advance triggers close."""
@@ -206,7 +206,7 @@ class TestTicketSystem:
             depends_on=[close_sp],
         )
         new_sp.save()
-        assert new_sp.source == "dynamic"
+        assert new_sp.source == "stateflow:source:dynamic"
         assert new_sp.sequence == 5
 
 
@@ -248,7 +248,7 @@ class TestTaskOrchestration:
         svc.publish_event(order_id=order_id,
                           subprocess_id=instance.get_subprocess("deploy").id,
                           new_status="deployed", event_key="to-deploy-1")
-        assert Order.query().where(Order.c.id == order_id).one().status == "completed"
+        assert Order.query().where(Order.c.id == order_id).one().status == "stateflow:order:completed"
 
     def test_timeout(self, backend_group):
         """Test stage times out → timeout_status."""
@@ -310,7 +310,7 @@ class TestAgentPlan:
         svc.publish_event(order_id=order_id,
                           subprocess_id=instance.get_subprocess("verify_result").id,
                           new_status="verified", event_key="ag-verify-1")
-        assert Order.query().where(Order.c.id == order_id).one().status == "completed"
+        assert Order.query().where(Order.c.id == order_id).one().status == "stateflow:order:completed"
 
     def test_failure_and_compensation(self, backend_group):
         """execute_action fails → rollback in reverse order."""
@@ -343,7 +343,7 @@ class TestAgentPlan:
         # rollback execute_action
         r1 = svc.publish_rollback(order_id=order_id, subprocess_id=exec_sp.id,
                                   event_key="ag2-rb-execute-1")
-        assert r1.event.event_type == "sp_rollback_started"
+        assert r1.event.event_type == "stateflow:event:sp_rollback_started"
 
         # rollback analyze (it's in "analyzed", not a rollback_state!)
         analyze_sp = instance.get_subprocess("analyze")

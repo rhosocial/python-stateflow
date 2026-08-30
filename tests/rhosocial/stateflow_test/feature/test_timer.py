@@ -63,7 +63,7 @@ def test_mark_running_sets_timeout_at_when_configured(backend_group, persisted_i
     )
     payment = persisted_instance.get_subprocess("payment")
     reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
-    assert reloaded.status == "running"
+    assert reloaded.status == "stateflow:subprocess:running"
     assert reloaded.started_at is not None
     assert reloaded.timeout_at is not None
     expected = reloaded.started_at + timedelta(seconds=300)
@@ -133,7 +133,7 @@ def test_tick_skips_subprocesses_not_yet_due(backend_group, persisted_instance):
     processed = scheduler.tick(now=payment.timeout_at - timedelta(seconds=1))
     assert processed == 0
     reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == payment.id).one()
-    assert reloaded.status == "running"
+    assert reloaded.status == "stateflow:subprocess:running"
 
 
 def test_tick_respects_limit(backend_group, persisted_instance):

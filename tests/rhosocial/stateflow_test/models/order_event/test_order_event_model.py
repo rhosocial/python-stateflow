@@ -52,11 +52,11 @@ def test_status_changed_and_conflict_events_capture_transition():
     order = make_order()
     subprocess = make_subprocess()
 
-    changed = OrderEvent.status_changed(order, subprocess, "pending", "done", {"x": 1}, "k1")
+    changed = OrderEvent.status_changed(order, subprocess, "stateflow:subprocess:pending", "done", {"x": 1}, "k1")
     conflict = OrderEvent.conflict_event(order, subprocess, "failed", event_key="k2")
 
     assert changed.event_type == EVENT_SP_STATUS_CHANGED
-    assert changed.from_status == "pending"
+    assert changed.from_status == "stateflow:subprocess:pending"
     assert changed.to_status == "done"
     assert changed.payload == {"x": 1}
     assert changed.event_key == "k1"

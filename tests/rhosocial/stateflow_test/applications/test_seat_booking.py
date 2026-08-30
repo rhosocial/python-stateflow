@@ -65,7 +65,7 @@ class TestSeatBookingSync:
                           new_status="ticketed", event_key="sb-ticket")
 
         order = Order.query().where(Order.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     def test_payment_failure_and_rollback(self, backend_group):
         """select → validate → payment_failed → rollback (refund)."""
@@ -105,7 +105,7 @@ class TestSeatBookingSync:
         result = svc.publish_rollback(order_id=order_id,
                                        subprocess_id=instance.get_subprocess("payment").id,
                                        event_key="sb2-rollback")
-        assert result.event.event_type == "sp_rollback_started"
+        assert result.event.event_type == "stateflow:event:sp_rollback_started"
 
 
 
@@ -162,4 +162,4 @@ class TestSeatBookingAsync:
                                 new_status="ticketed", event_key="sba-ticket")
 
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"

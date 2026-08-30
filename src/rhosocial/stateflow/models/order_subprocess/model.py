@@ -10,9 +10,9 @@ from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.field import OptimisticLockMixin, TimestampMixin, UUIDMixin
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 
-from ..order_process import OrderProcess
-from ..order_template_step import OrderTemplateStep
-from ...types import (
+from rhosocial.stateflow.models.order_process import OrderProcess
+from rhosocial.stateflow.models.order_template_step import OrderTemplateStep
+from rhosocial.stateflow.types import (
     ROLLBACK_STATUS_COMPLETED,
     ROLLBACK_STATUS_FAILED,
     ROLLBACK_STATUS_NOT_REQUIRED,

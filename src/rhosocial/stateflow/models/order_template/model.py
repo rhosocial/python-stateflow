@@ -8,9 +8,9 @@ from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.field import TimestampMixin, UUIDMixin
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 
-from ...exceptions import TemplateValidationError
-from ...types import TEMPLATE_STATUS_DRAFT
-from ..order_template_step import OrderTemplateStep
+from rhosocial.stateflow.exceptions import TemplateValidationError
+from rhosocial.stateflow.types import TEMPLATE_STATUS_DRAFT
+from rhosocial.stateflow.models.order_template_step import OrderTemplateStep
 
 StepT = TypeVar("StepT", bound=OrderTemplateStep)
 

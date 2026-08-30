@@ -53,7 +53,7 @@ def test_status_helpers_and_transitions():
 
     previous = subprocess.apply_status("done")
 
-    assert previous == "pending"
+    assert previous == "stateflow:subprocess:pending"
     assert subprocess.is_terminal()
     assert subprocess.is_advance_status()
     assert subprocess.completed_at is not None

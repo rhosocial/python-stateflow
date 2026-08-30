@@ -30,6 +30,26 @@ from rhosocial.stateflow import (
     SyncSubProcessHandler,
     SyncTimeoutScheduler,
 )
+from rhosocial.stateflow.models import (
+    AsyncFlowPathQuery,
+    AsyncOrderEventQuery,
+    AsyncOrderOutboxQuery,
+    AsyncOrderProcessQuery,
+    AsyncOrderQuery,
+    AsyncOrderSubProcessQuery,
+    AsyncOrderTemplateQuery,
+    AsyncOrderTemplateStepQuery,
+    AsyncSubProcessDependencyQuery,
+    FlowPathQuery,
+    OrderEventQuery,
+    OrderOutboxQuery,
+    OrderProcessQuery,
+    OrderQuery,
+    OrderSubProcessQuery,
+    OrderTemplateQuery,
+    OrderTemplateStepQuery,
+    SubProcessDependencyQuery,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +65,20 @@ PAIRS = [
     (SyncSubProcessHandler, AsyncSubProcessHandler),
     (SyncHandlerStartTopic, AsyncHandlerStartTopic),
     (SyncHandlerRollbackTopic, AsyncHandlerRollbackTopic),
+]
+
+# Query helper pairs: their methods only *build* query objects (pure, no I/O),
+# so both siblings expose plain (non-coroutine) methods over a shared base.
+QUERY_PAIRS = [
+    (FlowPathQuery, AsyncFlowPathQuery),
+    (OrderQuery, AsyncOrderQuery),
+    (OrderEventQuery, AsyncOrderEventQuery),
+    (OrderOutboxQuery, AsyncOrderOutboxQuery),
+    (OrderProcessQuery, AsyncOrderProcessQuery),
+    (OrderSubProcessQuery, AsyncOrderSubProcessQuery),
+    (OrderTemplateQuery, AsyncOrderTemplateQuery),
+    (OrderTemplateStepQuery, AsyncOrderTemplateStepQuery),
+    (SubProcessDependencyQuery, AsyncSubProcessDependencyQuery),
 ]
 
 # Topic classes have a ``topic`` class attribute (not a method) — excluded.
@@ -137,4 +171,40 @@ def test_async_methods_are_coroutines():
                 continue
             assert inspect.iscoroutinefunction(getattr(async_cls, method_name)), (
                 f"{async_cls.__name__}.{method_name} should be a coroutine"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Query helper pairs (pure query builders, non-coroutine on both sides)
+# ---------------------------------------------------------------------------
+
+
+def test_query_pairs_have_identical_public_methods():
+    """Sync and async query classes expose the same set of public methods."""
+    for sync_cls, async_cls in QUERY_PAIRS:
+        assert public_methods(sync_cls) == public_methods(async_cls), (
+            f"Query method names differ between {sync_cls.__name__} and {async_cls.__name__}"
+        )
+
+
+def test_query_pairs_have_identical_signature_structure():
+    """Every paired query method has the same parameter names, order, kinds, defaults."""
+    for sync_cls, async_cls in QUERY_PAIRS:
+        for method_name in sorted(public_methods(sync_cls)):
+            sync_sig = signature_structure(getattr(sync_cls, method_name))
+            async_sig = signature_structure(getattr(async_cls, method_name))
+            assert sync_sig == async_sig, (
+                f"Query signature differs for {sync_cls.__name__}.{method_name}"
+            )
+
+
+def test_query_pairs_are_not_coroutines():
+    """Query builders are pure (no I/O) — neither sibling is a coroutine."""
+    for sync_cls, async_cls in QUERY_PAIRS:
+        for method_name in sorted(public_methods(sync_cls)):
+            assert not inspect.iscoroutinefunction(getattr(sync_cls, method_name)), (
+                f"{sync_cls.__name__}.{method_name} should not be a coroutine"
+            )
+            assert not inspect.iscoroutinefunction(getattr(async_cls, method_name)), (
+                f"{async_cls.__name__}.{method_name} should not be a coroutine (pure query builder)"
             )

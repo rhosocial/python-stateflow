@@ -1,19 +1,19 @@
 # src/rhosocial/stateflow/models/order_subprocess/query.py
 """Query helpers for OrderSubProcess."""
 
-from ...types import (
+from rhosocial.stateflow.types import (
     SUBPROCESS_SOURCE_DYNAMIC,
     SUBPROCESS_SOURCE_TEMPLATE,
     SUBPROCESS_STATUS_PENDING,
     SUBPROCESS_STATUS_RUNNING,
 )
-from .model import OrderSubProcess
+from rhosocial.stateflow.models.order_subprocess.model import AsyncOrderSubProcess, OrderSubProcess
 
+class _OrderSubProcessQueryBase:
+    """Shared query building logic for OrderSubProcess and AsyncOrderSubProcess siblings."""
 
-class OrderSubProcessQuery:
-    """Query helpers for OrderSubProcess."""
+    model = None
 
-    model = OrderSubProcess
 
     @classmethod
     def by_process_id(cls, process_id):
@@ -77,3 +77,14 @@ class OrderSubProcessQuery:
     @classmethod
     def timeouts_due(cls, moment):
         return cls.not_skipped().where(cls.model.c.timeout_at <= moment)
+
+class OrderSubProcessQuery(_OrderSubProcessQueryBase):
+    """Query helpers for OrderSubProcess."""
+
+    model = OrderSubProcess
+
+
+class AsyncOrderSubProcessQuery(_OrderSubProcessQueryBase):
+    """Async query helpers for AsyncOrderSubProcess."""
+
+    model = AsyncOrderSubProcess

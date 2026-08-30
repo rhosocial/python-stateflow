@@ -52,7 +52,7 @@
   - `UnrecoverableDeliveryError` 标记不可恢复
   - `recover_stuck` 恢复卡在 `processing` 的条目
 - **Handler 注册与动态加载**：`HandlerRegistry` + 可选 `importlib` 动态导入
-  - `SyncHandlerStartTopic` / `AsyncHandlerStartTopic`：`handler_start` topic 标准实现
+  - `SyncHandlerStartTopic` / `AsyncHandlerStartTopic`：`stateflow:topic:handler_start` topic 标准实现
   - `SyncHandlerRollbackTopic` / `AsyncHandlerRollbackTopic`：`handler_rollback` topic 标准实现
 - **回滚链路**：`can_rollback` → `begin_rollback` → handler.rollback() → `complete_rollback` / `fail_rollback`
 - **超时调度**：`mark_running` 自动计算 `timeout_at`；`SyncTimeoutScheduler` / `AsyncTimeoutScheduler` 扫描到期子流程
@@ -62,6 +62,7 @@
   - `TicketSystem` — 工单系统（创建 → 分配 → 并行开发+QA → 关闭）
   - `TaskOrchestration` — 任务编排（钻石 DAG + 超时/回滚）
   - `AgentPlan` — Agent 执行计划（步骤编排 + 失败补偿）
+  - `AiAgentAssistant` — AI Agent 助手（运行时动态定义执行图）
   - `MediaGenerationFlow` — 文生图/视频（积分冻结 → 生成 → 交付 / 退款）
   - `SeatBookingFlow` — 固定座位订票（选座 → 校验 → 支付 → 出票）
   - `external_services` — 支付/积分协议 + Mock 实现（同步/异步对等）

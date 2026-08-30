@@ -2,6 +2,6 @@
 """Exports for OrderTemplateStep and its async sibling."""
 
 from .model import AsyncOrderTemplateStep, OrderTemplateStep
-from .query import OrderTemplateStepQuery
+from .query import AsyncOrderTemplateStepQuery, OrderTemplateStepQuery
 
-__all__ = ["AsyncOrderTemplateStep", "OrderTemplateStep", "OrderTemplateStepQuery"]
+__all__ = ["AsyncOrderTemplateStep", "AsyncOrderTemplateStepQuery", "OrderTemplateStep", "OrderTemplateStepQuery"]

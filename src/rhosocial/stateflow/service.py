@@ -16,20 +16,16 @@ catch that case and re-raise as
 :class:`~rhosocial.stateflow.exceptions.ConcurrentStateTransitionError`.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
-from .dispatcher import AsyncOrderDispatcher, DispatchResult, SyncOrderDispatcher
-from .exceptions import ConcurrentStateTransitionError
-from .models import (
-    AsyncOrder,
-    AsyncOrderEvent,
-    AsyncOrderSubProcess,
-    AsyncSubProcessDependency,
-    Order,
-    OrderEvent,
-    OrderSubProcess,
-    SubProcessDependency,
-)
+from rhosocial.stateflow.dispatcher import AsyncOrderDispatcher, DispatchResult, SyncOrderDispatcher
+from rhosocial.stateflow.exceptions import ConcurrentStateTransitionError
+from rhosocial.stateflow.factory import AsyncOrderFactory, SyncOrderFactory
+from rhosocial.stateflow.models.order import AsyncOrder, Order
+from rhosocial.stateflow.models.order_event import AsyncOrderEvent, OrderEvent
+from rhosocial.stateflow.models.order_process import AsyncOrderProcess, OrderProcess
+from rhosocial.stateflow.models.order_subprocess import AsyncOrderSubProcess, OrderSubProcess
+from rhosocial.stateflow.models.subprocess_dependency import AsyncSubProcessDependency, SubProcessDependency
 
 _CONCURRENCY_MESSAGE = "Record was updated by another process"
 
@@ -37,8 +33,79 @@ _CONCURRENCY_MESSAGE = "Record was updated by another process"
 class SyncOrderService:
     """Synchronous service that loads, advances, and persists an order in one transaction."""
 
-    def __init__(self, dispatcher: Optional[SyncOrderDispatcher] = None) -> None:
+    def __init__(
+        self,
+        dispatcher: Optional[SyncOrderDispatcher] = None,
+        factory: Optional[SyncOrderFactory] = None,
+    ) -> None:
         self.dispatcher = dispatcher or SyncOrderDispatcher()
+        self.factory = factory or SyncOrderFactory()
+
+    def append_subprocess(
+        self,
+        order_id: Any,
+        *,
+        name: str,
+        handler_class: str,
+        terminal_states: Sequence[str],
+        advance_states: Sequence[str],
+        rollback_states: Optional[Sequence[str]] = None,
+        depends_on: Optional[Sequence[OrderSubProcess]] = None,
+        timeout_seconds: Optional[int] = None,
+        timeout_status: Optional[str] = None,
+        is_reversible: bool = False,
+        event_key: Optional[str] = None,
+    ) -> OrderSubProcess:
+        """Atomically append a dynamic subprocess to an order's process.
+
+        Persists the new subprocess, its dependency edges, and a
+        ``sp_appended`` event in a single transaction, so an execution graph
+        can be **defined at runtime**. The returned subprocess is persisted;
+        downstream         auto-starting happens on the next ``publish_event``.
+        """
+        backend = Order.backend()
+        with backend.transaction():
+            order = Order.query().where(Order.c.id == order_id).one()
+            if order is None:
+                raise ValueError(f"Order {order_id} not found")
+
+            process = OrderProcess.query().where(OrderProcess.c.order_id == order_id).one()
+            if process is None:
+                raise ValueError(f"OrderProcess for order {order_id} not found")
+
+            subprocesses = (
+                OrderSubProcess.query()
+                .where(OrderSubProcess.c.process_id == process.id)
+                .all()
+            )
+            dependencies = (
+                SubProcessDependency.query()
+                .where(SubProcessDependency.c.process_id == process.id)
+                .all()
+            )
+
+            subprocess = self.factory.append_subprocess(
+                process,
+                subprocesses,
+                dependencies,
+                name=name,
+                handler_class=handler_class,
+                terminal_states=terminal_states,
+                advance_states=advance_states,
+                rollback_states=rollback_states,
+                depends_on=depends_on,
+                timeout_seconds=timeout_seconds,
+                timeout_status=timeout_status,
+                is_reversible=is_reversible,
+            )
+            subprocess.save()
+            for dependency in depends_on or []:
+                edge = SubProcessDependency.for_subprocess(process.id, subprocess, dependency)
+                edge.save()
+            event = OrderEvent.subprocess_appended(order, subprocess, event_key=event_key)
+            event.save()
+            return subprocess
+
 
     def publish_event(
         self,
@@ -242,8 +309,76 @@ class AsyncOrderService:
     ``AsyncStorageBackend``.
     """
 
-    def __init__(self, dispatcher: Optional[AsyncOrderDispatcher] = None) -> None:
+    def __init__(
+        self,
+        dispatcher: Optional[AsyncOrderDispatcher] = None,
+        factory: Optional[AsyncOrderFactory] = None,
+    ) -> None:
         self.dispatcher = dispatcher or AsyncOrderDispatcher()
+        self.factory = factory or AsyncOrderFactory()
+
+    async def append_subprocess(
+        self,
+        order_id: Any,
+        *,
+        name: str,
+        handler_class: str,
+        terminal_states: Sequence[str],
+        advance_states: Sequence[str],
+        rollback_states: Optional[Sequence[str]] = None,
+        depends_on: Optional[Sequence[AsyncOrderSubProcess]] = None,
+        timeout_seconds: Optional[int] = None,
+        timeout_status: Optional[str] = None,
+        is_reversible: bool = False,
+        event_key: Optional[str] = None,
+    ) -> AsyncOrderSubProcess:
+        """Atomically append a dynamic subprocess to an async order's process.
+
+        Async counterpart of :meth:`SyncOrderService.append_subprocess` using
+        native ``await`` throughout.
+        """
+        backend = AsyncOrder.backend()
+        async with backend.transaction():
+            order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
+            if order is None:
+                raise ValueError(f"Order {order_id} not found")
+
+            process = await AsyncOrderProcess.query().where(
+                AsyncOrderProcess.c.order_id == order_id
+            ).one()
+            if process is None:
+                raise ValueError(f"OrderProcess for order {order_id} not found")
+
+            subprocesses = await AsyncOrderSubProcess.query().where(
+                AsyncOrderSubProcess.c.process_id == process.id
+            ).all()
+            dependencies = await AsyncSubProcessDependency.query().where(
+                AsyncSubProcessDependency.c.process_id == process.id
+            ).all()
+
+            subprocess = await self.factory.append_subprocess(
+                process,
+                subprocesses,
+                dependencies,
+                name=name,
+                handler_class=handler_class,
+                terminal_states=terminal_states,
+                advance_states=advance_states,
+                rollback_states=rollback_states,
+                depends_on=depends_on,
+                timeout_seconds=timeout_seconds,
+                timeout_status=timeout_status,
+                is_reversible=is_reversible,
+            )
+            await subprocess.save()
+            for dependency in depends_on or []:
+                edge = AsyncSubProcessDependency.for_subprocess(
+                    process.id, subprocess, dependency
+                )
+                await edge.save()
+            event = AsyncOrderEvent.subprocess_appended(order, subprocess, event_key=event_key)
+            await event.save()
+            return subprocess
 
     async def publish_event(
         self,

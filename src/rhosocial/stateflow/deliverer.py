@@ -16,9 +16,9 @@ users can plug in ``notification``, ``timer`` or any custom topic.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from .exceptions import StateflowError
-from .models import AsyncOrderOutbox, OrderOutbox
-from .types import (
+from rhosocial.stateflow.exceptions import StateflowError
+from rhosocial.stateflow.models.order_outbox import AsyncOrderOutbox, OrderOutbox
+from rhosocial.stateflow.types import (
     OUTBOX_STATUS_FAILED,
     OUTBOX_STATUS_PENDING,
     OUTBOX_STATUS_PROCESSING,

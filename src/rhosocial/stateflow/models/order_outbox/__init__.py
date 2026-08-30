@@ -2,6 +2,6 @@
 """Exports for OrderOutbox and its async sibling."""
 
 from .model import AsyncOrderOutbox, OrderOutbox
-from .query import OrderOutboxQuery
+from .query import AsyncOrderOutboxQuery, OrderOutboxQuery
 
-__all__ = ["AsyncOrderOutbox", "OrderOutbox", "OrderOutboxQuery"]
+__all__ = ["AsyncOrderOutbox", "AsyncOrderOutboxQuery", "OrderOutbox", "OrderOutboxQuery"]

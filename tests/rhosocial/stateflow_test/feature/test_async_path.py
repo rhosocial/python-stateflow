@@ -150,7 +150,7 @@ async def test_async_service_starts_downstream(async_backend_group, async_persis
     reloaded = await AsyncOrderSubProcess.query().where(
         AsyncOrderSubProcess.c.id == payment.id
     ).one()
-    assert reloaded.status == "running"
+    assert reloaded.status == "stateflow:subprocess:running"
 
 
 @pytest.mark.asyncio
@@ -197,7 +197,7 @@ async def test_async_service_completes_order(async_backend_group, async_persiste
     await service.publish_event(order_id=order_id, subprocess_id=shp.id, new_status="shipped")
 
     reloaded = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-    assert reloaded.status == "completed"
+    assert reloaded.status == "stateflow:order:completed"
     assert reloaded.completed_at is not None
 
 

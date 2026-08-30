@@ -2,6 +2,6 @@
 """Exports for SubProcessDependency and its async sibling."""
 
 from .model import AsyncSubProcessDependency, SubProcessDependency
-from .query import SubProcessDependencyQuery
+from .query import AsyncSubProcessDependencyQuery, SubProcessDependencyQuery
 
-__all__ = ["AsyncSubProcessDependency", "SubProcessDependency", "SubProcessDependencyQuery"]
+__all__ = ["AsyncSubProcessDependency", "AsyncSubProcessDependencyQuery", "SubProcessDependency", "SubProcessDependencyQuery"]

@@ -71,7 +71,7 @@ with BackendGroup(name="stateflow", models=models,
         event_key="inventory-1",   # idempotency key
     )
     # result.started_subprocesses → ["payment"] (downstream auto-started)
-    # result.outbox_items → [handler_start outbox for payment]
+    # result.outbox_items → [stateflow:topic:handler_start outbox for payment]
 ```
 
 ## Async Path

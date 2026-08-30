@@ -10,7 +10,7 @@ from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.field import TimestampMixin, UUIDMixin
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 
-from ...types import ORDER_STATUS_COMPLETED, ORDER_STATUS_PENDING
+from rhosocial.stateflow.types import ORDER_STATUS_COMPLETED, ORDER_STATUS_PENDING
 
 
 class Order(UUIDMixin, TimestampMixin, ActiveRecord):

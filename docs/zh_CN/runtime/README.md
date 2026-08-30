@@ -150,7 +150,7 @@ flowchart TD
 ### Topic 注册
 
 ```python
-deliverer.register_topic_handler("handler_start", topic_callable)
+deliverer.register_topic_handler("stateflow:topic:handler_start", topic_callable)
 ```
 
 Topic handler 是返回 `bool` 的可调用对象（异步路径返回 `Awaitable[bool]`）。

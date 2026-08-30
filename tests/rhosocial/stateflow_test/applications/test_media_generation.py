@@ -76,7 +76,7 @@ class TestMediaGenerationSync:
                           new_status="delivered", event_key="mg-deliver-1")
 
         order = Order.query().where(Order.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"
 
     def test_failure_path_with_refund(self, backend_group):
         """collect → freeze → submit → poll(failed) → refund → credits returned."""
@@ -187,4 +187,4 @@ class TestMediaGenerationAsync:
                                 new_status="delivered", event_key="mga-deliver")
 
         order = await AsyncOrder.query().where(AsyncOrder.c.id == order_id).one()
-        assert order.status == "completed"
+        assert order.status == "stateflow:order:completed"

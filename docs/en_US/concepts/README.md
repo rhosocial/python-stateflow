@@ -114,13 +114,13 @@ Immutable event log. Every state transition produces one event, supporting:
 - **Idempotency**: `event_key` uniquely identifies an operation; duplicate submissions return `duplicate=True`
 - **Causality**: `correlation_id` (same transaction) / `causation_id` (causal relationship)
 
-Event type constants: `order_created` / `sp_created` / `sp_skipped` / `sp_status_changed` / `sp_rollback_started` / `sp_rollback_completed` / `sp_rollback_failed` / `order_completed` / `sp_timeout` / `conflict`
+Event type constants: `stateflow:event:order_created` / `stateflow:event:sp_created` / `stateflow:event:sp_skipped` / `stateflow:event:sp_status_changed` / `stateflow:event:sp_rollback_started` / `stateflow:event:sp_rollback_completed` / `stateflow:event:sp_rollback_failed` / `stateflow:event:order_completed` / `stateflow:event:sp_timeout` / `stateflow:event:conflict` (all framework tags are namespaced — see `.claude/rules/namespacing.md`)
 
 ### OrderOutbox
 
 Side-effect delivery record. Decouples state transitions from external calls:
 
-- `topic`: delivery target (`handler_start` / `handler_rollback` / `notification` / `timer`)
+- `topic`: delivery target (`stateflow:topic:handler_start` / `stateflow:topic:handler_rollback` / `stateflow:topic:notification` / `stateflow:topic:timer`)
 - `status`: pending → processing → sent / failed / cancelled
 - `retry_count` / `next_retry_at`: retry control
 - `payload`: delivery data (e.g. `{"subprocess_id": "..."}`)

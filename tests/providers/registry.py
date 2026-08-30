@@ -5,8 +5,7 @@ Discovers available backends at import time and registers sync + async
 providers for each. Backends that are not installed are silently skipped;
 tests parameterized by provider only run against installed backends.
 
-Currently supported: SQLite, MySQL, MariaDB, PostgreSQL, SQL Server, Oracle,
-Firebird. To add a new backend, implement a provider module and import it
+Currently supported: SQLite, MySQL, MariaDB, PostgreSQL, SQL Server, Oracle, Firebird. To add a new backend, implement a provider module and import it
 here — the rest of the test infrastructure picks it up automatically.
 """
 
@@ -51,6 +50,21 @@ def get_sync_providers() -> List[StateflowSyncProvider]:
         if PostgresSyncProvider.is_available():
             providers.append(PostgresSyncProvider())
 
+    if _try_import("rhosocial.activerecord.backend.impl.sqlserver"):
+        from .sqlserver_sync import SQLServerSyncProvider
+        if SQLServerSyncProvider.is_available():
+            providers.append(SQLServerSyncProvider())
+
+    if _try_import("rhosocial.activerecord.backend.impl.oracle"):
+        from .oracle_sync import OracleSyncProvider
+        if OracleSyncProvider.is_available():
+            providers.append(OracleSyncProvider())
+
+    if _try_import("rhosocial.activerecord.backend.impl.firebird"):
+        from .firebird_sync import FirebirdSyncProvider
+        if FirebirdSyncProvider.is_available():
+            providers.append(FirebirdSyncProvider())
+
     return providers
 
 
@@ -76,6 +90,21 @@ def get_async_providers() -> List[StateflowAsyncProvider]:
         from .postgres_async import PostgresAsyncProvider
         if PostgresAsyncProvider.is_available():
             providers.append(PostgresAsyncProvider())
+
+    if _try_import("rhosocial.activerecord.backend.impl.sqlserver"):
+        from .sqlserver_async import SQLServerAsyncProvider
+        if SQLServerAsyncProvider.is_available():
+            providers.append(SQLServerAsyncProvider())
+
+    if _try_import("rhosocial.activerecord.backend.impl.oracle"):
+        from .oracle_async import OracleAsyncProvider
+        if OracleAsyncProvider.is_available():
+            providers.append(OracleAsyncProvider())
+
+    if _try_import("rhosocial.activerecord.backend.impl.firebird"):
+        from .firebird_async import FirebirdAsyncProvider
+        if FirebirdAsyncProvider.is_available():
+            providers.append(FirebirdAsyncProvider())
 
     return providers
 

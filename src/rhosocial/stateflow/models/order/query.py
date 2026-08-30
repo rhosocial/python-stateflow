@@ -1,14 +1,14 @@
 # src/rhosocial/stateflow/models/order/query.py
 """Query helpers for Order."""
 
-from ...types import ORDER_STATUS_COMPLETED, ORDER_STATUS_PENDING, ORDER_STATUS_RUNNING
-from .model import Order
+from rhosocial.stateflow.types import ORDER_STATUS_COMPLETED, ORDER_STATUS_PENDING, ORDER_STATUS_RUNNING
+from rhosocial.stateflow.models.order.model import AsyncOrder, Order
 
+class _OrderQueryBase:
+    """Shared query building logic for Order and AsyncOrder siblings."""
 
-class OrderQuery:
-    """Query helpers for Order."""
+    model = None
 
-    model = Order
 
     @classmethod
     def by_template_id(cls, template_id):
@@ -37,3 +37,14 @@ class OrderQuery:
     @classmethod
     def completed_after(cls, moment):
         return cls.model.query().where(cls.model.c.completed_at >= moment)
+
+class OrderQuery(_OrderQueryBase):
+    """Query helpers for Order."""
+
+    model = Order
+
+
+class AsyncOrderQuery(_OrderQueryBase):
+    """Async query helpers for AsyncOrder."""
+
+    model = AsyncOrder

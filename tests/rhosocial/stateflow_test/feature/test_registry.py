@@ -214,5 +214,5 @@ def test_sync_handler_start_topic_skips_publish_when_handler_returns_none(
     reloaded = OrderSubProcess.query().where(OrderSubProcess.c.id == inventory.id).one()
     # The dispatcher was never invoked here (we built the outbox item manually),
     # so a None-returning handler leaves the subprocess in its initial state.
-    assert reloaded.status == "pending"
+    assert reloaded.status == "stateflow:subprocess:pending"
 

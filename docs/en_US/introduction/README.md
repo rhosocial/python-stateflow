@@ -83,6 +83,7 @@ src/rhosocial/stateflow/
     ├── ticket_system.py      # Ticket system (parallel DAG)
     ├── task_orchestration.py # Task pipeline (diamond DAG + timeout/rollback)
     ├── agent_plan.py         # Agent execution plan (failure compensation)
+    ├── ai_agent.py           # AI agent assistant (runtime-defined execution graph)
     ├── media_generation.py   # Text-to-image/video (credit freeze/refund)
     ├── seat_booking.py        # Fixed-seat booking (payment/ticketing)
     └── external_services.py   # Payment/credit protocols + mock implementations

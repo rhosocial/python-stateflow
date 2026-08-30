@@ -30,11 +30,11 @@ def test_all_subprocesses_completed_ignores_skipped_subprocesses():
 
     assert order.all_subprocesses_completed([
         make_subprocess("done"),
-        make_subprocess("pending", skipped=True),
+        make_subprocess("stateflow:subprocess:pending", skipped=True),
     ])
 
 
 def test_all_subprocesses_completed_requires_active_advance_state():
     order = Order(template_id=uuid.uuid4())
 
-    assert not order.all_subprocesses_completed([make_subprocess("pending")])
+    assert not order.all_subprocesses_completed([make_subprocess("stateflow:subprocess:pending")])

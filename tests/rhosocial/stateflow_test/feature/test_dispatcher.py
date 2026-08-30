@@ -53,10 +53,10 @@ def test_advance_state_starts_downstream_subprocess():
         dependencies=instance.dependencies,
     )
 
-    assert payment.status == "running"
+    assert payment.status == "stateflow:subprocess:running"
     assert result.started_subprocesses == [payment]
     assert len(result.outbox_items) == 1
-    assert result.outbox_items[0].topic == "handler_start"
+    assert result.outbox_items[0].topic == "stateflow:topic:handler_start"
 
 
 def test_terminal_state_cannot_be_overwritten():

@@ -11,17 +11,13 @@ so that the produced objects match the caller's sync/async path.
 
 from typing import Any, ClassVar, Dict, List, Optional, Sequence
 
-from .exceptions import InvalidStateTransitionError
-from .models import (
-    AsyncOrderEvent,
-    AsyncOrderOutbox,
-    Order,
-    OrderEvent,
-    OrderOutbox,
-    OrderSubProcess,
-    SubProcessDependency,
-)
-from .types import EVENT_SP_TIMEOUT, SUBPROCESS_STATUS_PENDING
+from rhosocial.stateflow.exceptions import InvalidStateTransitionError
+from rhosocial.stateflow.models.order import Order
+from rhosocial.stateflow.models.order_event import AsyncOrderEvent, OrderEvent
+from rhosocial.stateflow.models.order_outbox import AsyncOrderOutbox, OrderOutbox
+from rhosocial.stateflow.models.order_subprocess import OrderSubProcess
+from rhosocial.stateflow.models.subprocess_dependency import SubProcessDependency
+from rhosocial.stateflow.types import EVENT_SP_TIMEOUT, SUBPROCESS_STATUS_PENDING
 
 
 class DispatchResult:

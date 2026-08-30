@@ -2,6 +2,6 @@
 """Exports for OrderEvent and its async sibling."""
 
 from .model import AsyncOrderEvent, OrderEvent
-from .query import OrderEventQuery
+from .query import AsyncOrderEventQuery, OrderEventQuery
 
-__all__ = ["AsyncOrderEvent", "OrderEvent", "OrderEventQuery"]
+__all__ = ["AsyncOrderEvent", "AsyncOrderEventQuery", "OrderEvent", "OrderEventQuery"]

@@ -10,7 +10,7 @@ from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.field import TimestampMixin, UUIDMixin
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 
-from ...types import OUTBOX_STATUS_PENDING, OUTBOX_TOPIC_HANDLER_ROLLBACK, OUTBOX_TOPIC_HANDLER_START
+from rhosocial.stateflow.types import OUTBOX_STATUS_PENDING, OUTBOX_TOPIC_HANDLER_ROLLBACK, OUTBOX_TOPIC_HANDLER_START
 
 
 class OrderOutbox(UUIDMixin, TimestampMixin, ActiveRecord):

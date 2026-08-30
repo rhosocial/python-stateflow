@@ -1,60 +1,97 @@
 # src/rhosocial/stateflow/types.py
-"""Shared types for stateflow."""
+"""Shared types for stateflow.
+
+All framework-reserved string tags (status values, event types, outbox
+topics, sources) are **namespaced** so they can never collide with
+user-declared business values (e.g. a custom ``terminal_state`` named
+``"running"``) or with tags from other frameworks. The ``stateflow:``
+prefix is the reserved namespace for this package.
+"""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-ORDER_STATUS_PENDING = "pending"
-ORDER_STATUS_RUNNING = "running"
-ORDER_STATUS_COMPLETED = "completed"
-ORDER_STATUS_ROLLED_BACK = "rolled_back"
-ORDER_STATUS_SUSPENDED = "suspended"
+# ---------------------------------------------------------------------------
+# Order lifecycle
+# ---------------------------------------------------------------------------
 
-TEMPLATE_STATUS_DRAFT = "draft"
-TEMPLATE_STATUS_PUBLISHED = "published"
-TEMPLATE_STATUS_DEPRECATED = "deprecated"
-TEMPLATE_STATUS_ARCHIVED = "archived"
+ORDER_STATUS_PENDING = "stateflow:order:pending"
+ORDER_STATUS_RUNNING = "stateflow:order:running"
+ORDER_STATUS_COMPLETED = "stateflow:order:completed"
+ORDER_STATUS_ROLLED_BACK = "stateflow:order:rolled_back"
+ORDER_STATUS_SUSPENDED = "stateflow:order:suspended"
 
-SUBPROCESS_STATUS_PENDING = "pending"
-SUBPROCESS_STATUS_RUNNING = "running"
+# ---------------------------------------------------------------------------
+# Template lifecycle
+# ---------------------------------------------------------------------------
 
-SUBPROCESS_SOURCE_TEMPLATE = "template"
-SUBPROCESS_SOURCE_DYNAMIC = "dynamic"
+TEMPLATE_STATUS_DRAFT = "stateflow:template:draft"
+TEMPLATE_STATUS_PUBLISHED = "stateflow:template:published"
+TEMPLATE_STATUS_DEPRECATED = "stateflow:template:deprecated"
+TEMPLATE_STATUS_ARCHIVED = "stateflow:template:archived"
 
-ROLLBACK_STATUS_NOT_REQUIRED = "not_required"
-ROLLBACK_STATUS_PENDING = "pending"
-ROLLBACK_STATUS_RUNNING = "running"
-ROLLBACK_STATUS_COMPLETED = "completed"
-ROLLBACK_STATUS_FAILED = "failed"
+# ---------------------------------------------------------------------------
+# Subprocess lifecycle (framework-reserved states only; user-declared
+# terminal/advance/rollback states are never namespaced)
+# ---------------------------------------------------------------------------
 
-EVENT_ORDER_CREATED = "order_created"
-EVENT_ORDER_COMPLETED = "order_completed"
-EVENT_SP_CREATED = "sp_created"
-EVENT_SP_SKIPPED = "sp_skipped"
-EVENT_SP_STARTED = "sp_started"
-EVENT_SP_STATUS_CHANGED = "sp_status_changed"
-EVENT_SP_APPENDED = "sp_appended"
-EVENT_SP_TIMEOUT = "sp_timeout"
-EVENT_SP_ROLLBACK_STARTED = "sp_rollback_started"
-EVENT_SP_ROLLBACK_COMPLETED = "sp_rollback_completed"
-EVENT_SP_ROLLBACK_FAILED = "sp_rollback_failed"
-EVENT_CONFLICT = "conflict"
+SUBPROCESS_STATUS_PENDING = "stateflow:subprocess:pending"
+SUBPROCESS_STATUS_RUNNING = "stateflow:subprocess:running"
 
-OUTBOX_STATUS_PENDING = "pending"
-OUTBOX_STATUS_PROCESSING = "processing"
-OUTBOX_STATUS_SENT = "sent"
-OUTBOX_STATUS_FAILED = "failed"
-OUTBOX_STATUS_CANCELLED = "cancelled"
+SUBPROCESS_SOURCE_TEMPLATE = "stateflow:source:template"
+SUBPROCESS_SOURCE_DYNAMIC = "stateflow:source:dynamic"
 
-OUTBOX_TOPIC_HANDLER_START = "handler_start"
-OUTBOX_TOPIC_HANDLER_ROLLBACK = "handler_rollback"
-OUTBOX_TOPIC_NOTIFICATION = "notification"
-OUTBOX_TOPIC_TIMER = "timer"
+# ---------------------------------------------------------------------------
+# Rollback lifecycle
+# ---------------------------------------------------------------------------
+
+ROLLBACK_STATUS_NOT_REQUIRED = "stateflow:rollback:not_required"
+ROLLBACK_STATUS_PENDING = "stateflow:rollback:pending"
+ROLLBACK_STATUS_RUNNING = "stateflow:rollback:running"
+ROLLBACK_STATUS_COMPLETED = "stateflow:rollback:completed"
+ROLLBACK_STATUS_FAILED = "stateflow:rollback:failed"
+
+# ---------------------------------------------------------------------------
+# Event types (immutable event log discriminators)
+# ---------------------------------------------------------------------------
+
+EVENT_ORDER_CREATED = "stateflow:event:order_created"
+EVENT_ORDER_COMPLETED = "stateflow:event:order_completed"
+EVENT_SP_CREATED = "stateflow:event:sp_created"
+EVENT_SP_SKIPPED = "stateflow:event:sp_skipped"
+EVENT_SP_STARTED = "stateflow:event:sp_started"
+EVENT_SP_STATUS_CHANGED = "stateflow:event:sp_status_changed"
+EVENT_SP_APPENDED = "stateflow:event:sp_appended"
+EVENT_SP_TIMEOUT = "stateflow:event:sp_timeout"
+EVENT_SP_ROLLBACK_STARTED = "stateflow:event:sp_rollback_started"
+EVENT_SP_ROLLBACK_COMPLETED = "stateflow:event:sp_rollback_completed"
+EVENT_SP_ROLLBACK_FAILED = "stateflow:event:sp_rollback_failed"
+EVENT_CONFLICT = "stateflow:event:conflict"
+
+# ---------------------------------------------------------------------------
+# Outbox lifecycle
+# ---------------------------------------------------------------------------
+
+OUTBOX_STATUS_PENDING = "stateflow:outbox:pending"
+OUTBOX_STATUS_PROCESSING = "stateflow:outbox:processing"
+OUTBOX_STATUS_SENT = "stateflow:outbox:sent"
+OUTBOX_STATUS_FAILED = "stateflow:outbox:failed"
+OUTBOX_STATUS_CANCELLED = "stateflow:outbox:cancelled"
+
+OUTBOX_TOPIC_HANDLER_START = "stateflow:topic:handler_start"
+OUTBOX_TOPIC_HANDLER_ROLLBACK = "stateflow:topic:handler_rollback"
+OUTBOX_TOPIC_NOTIFICATION = "stateflow:topic:notification"
+OUTBOX_TOPIC_TIMER = "stateflow:topic:timer"
 
 
 @dataclass
 class HandlerResult:
-    """Terminal or intermediate status reported by a subprocess handler."""
+    """Terminal or intermediate status reported by a subprocess handler.
+
+    ``status`` and ``event_key`` are opaque strings: ``status`` is a
+    user-declared subprocess state (never namespaced), ``event_key`` is a
+    caller-supplied idempotency key.
+    """
 
     status: str
     payload: Optional[Dict[str, Any]] = None

@@ -27,20 +27,23 @@ Available components:
 - :mod:`ticket_system` — ticket workflow (create → assign → parallel dev+QA → close)
 - :mod:`task_orchestration` — DAG task pipeline with timeout and rollback
 - :mod:`agent_plan` — agent execution plan with failure compensation
+- :mod:`ai_agent` — AI agent assistant with a runtime-defined execution graph
 - :mod:`media_generation` — text-to-image/video generation order (freeze credits → generate → deliver / refund)
 - :mod:`seat_booking` — fixed-seat ticketing (select → validate → pay → issue ticket)
 - :mod:`external_services` — payment/credit protocols + mock implementations
 """
 
+from .agent_plan import AgentPlan
+from .ai_agent import AiAgentAssistant
 from .approval_flow import ApprovalFlow
 from .ticket_system import TicketSystem
 from .task_orchestration import TaskOrchestration
-from .agent_plan import AgentPlan
 from .media_generation import MediaGenerationFlow
 from .seat_booking import SeatBookingFlow
 
 __all__ = [
     "AgentPlan",
+    "AiAgentAssistant",
     "ApprovalFlow",
     "MediaGenerationFlow",
     "SeatBookingFlow",

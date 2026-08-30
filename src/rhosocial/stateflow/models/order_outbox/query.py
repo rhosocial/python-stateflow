@@ -1,14 +1,14 @@
 # src/rhosocial/stateflow/models/order_outbox/query.py
 """Query helpers for OrderOutbox."""
 
-from ...types import OUTBOX_STATUS_FAILED, OUTBOX_STATUS_PENDING, OUTBOX_STATUS_PROCESSING
-from .model import OrderOutbox
+from rhosocial.stateflow.types import OUTBOX_STATUS_FAILED, OUTBOX_STATUS_PENDING, OUTBOX_STATUS_PROCESSING
+from rhosocial.stateflow.models.order_outbox.model import AsyncOrderOutbox, OrderOutbox
 
+class _OrderOutboxQueryBase:
+    """Shared query building logic for OrderOutbox and AsyncOrderOutbox siblings."""
 
-class OrderOutboxQuery:
-    """Query helpers for OrderOutbox."""
+    model = None
 
-    model = OrderOutbox
 
     @classmethod
     def by_status(cls, status):
@@ -37,3 +37,14 @@ class OrderOutboxQuery:
     @classmethod
     def due_for_retry(cls, moment):
         return cls.failed().where(cls.model.c.next_retry_at <= moment)
+
+class OrderOutboxQuery(_OrderOutboxQueryBase):
+    """Query helpers for OrderOutbox."""
+
+    model = OrderOutbox
+
+
+class AsyncOrderOutboxQuery(_OrderOutboxQueryBase):
+    """Async query helpers for AsyncOrderOutbox."""
+
+    model = AsyncOrderOutbox

@@ -2,6 +2,6 @@
 """Exports for FlowPath and its async sibling."""
 
 from .model import AsyncFlowPath, FlowPath
-from .query import FlowPathQuery
+from .query import AsyncFlowPathQuery, FlowPathQuery
 
-__all__ = ["AsyncFlowPath", "FlowPath", "FlowPathQuery"]
+__all__ = ["AsyncFlowPath", "AsyncFlowPathQuery", "FlowPath", "FlowPathQuery"]

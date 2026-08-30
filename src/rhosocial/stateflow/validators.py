@@ -3,8 +3,9 @@
 
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
-from .models import FlowPath, OrderTemplateStep
-from .types import ValidationResult
+from rhosocial.stateflow.models.flow_path import FlowPath
+from rhosocial.stateflow.models.order_template_step import OrderTemplateStep
+from rhosocial.stateflow.types import ValidationResult
 
 
 class OrderTemplateValidator:

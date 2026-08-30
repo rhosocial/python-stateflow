@@ -150,7 +150,7 @@ flowchart TD
 ### Topic Registration
 
 ```python
-deliverer.register_topic_handler("handler_start", topic_callable)
+deliverer.register_topic_handler("stateflow:topic:handler_start", topic_callable)
 ```
 
 A topic handler is a callable returning `bool` (async path returns `Awaitable[bool]`).

@@ -9,10 +9,11 @@ from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.field import TimestampMixin, UUIDMixin
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 
-from ...types import (
+from rhosocial.stateflow.types import (
     EVENT_CONFLICT,
     EVENT_ORDER_COMPLETED,
     EVENT_ORDER_CREATED,
+    EVENT_SP_APPENDED,
     EVENT_SP_CREATED,
     EVENT_SP_ROLLBACK_COMPLETED,
     EVENT_SP_ROLLBACK_FAILED,
@@ -66,6 +67,23 @@ class OrderEvent(UUIDMixin, TimestampMixin, ActiveRecord):
             event_type=EVENT_SP_SKIPPED,
             to_status=subprocess.status,
             payload={"step_name": subprocess.step_name},
+        )
+
+    @classmethod
+    def subprocess_appended(
+        cls,
+        order: Any,
+        subprocess: Any,
+        event_key: Optional[str] = None,
+    ) -> "OrderEvent":
+        """Build an event recording a dynamically appended subprocess."""
+        return cls(
+            order_id=order.id,
+            subprocess_id=subprocess.id,
+            event_type=EVENT_SP_APPENDED,
+            to_status=subprocess.status,
+            payload={"step_name": subprocess.step_name, "source": subprocess.source},
+            event_key=event_key,
         )
 
     @classmethod
@@ -228,6 +246,23 @@ class AsyncOrderEvent(UUIDMixin, TimestampMixin, AsyncActiveRecord):
             event_type=EVENT_SP_SKIPPED,
             to_status=subprocess.status,
             payload={"step_name": subprocess.step_name},
+        )
+
+    @classmethod
+    def subprocess_appended(
+        cls,
+        order: Any,
+        subprocess: Any,
+        event_key: Optional[str] = None,
+    ) -> "AsyncOrderEvent":
+        """Build an event recording a dynamically appended subprocess."""
+        return cls(
+            order_id=order.id,
+            subprocess_id=subprocess.id,
+            event_type=EVENT_SP_APPENDED,
+            to_status=subprocess.status,
+            payload={"step_name": subprocess.step_name, "source": subprocess.source},
+            event_key=event_key,
         )
 
     @classmethod

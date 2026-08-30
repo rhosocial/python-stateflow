@@ -114,13 +114,13 @@ rollback_states = ["failed"]              # 可触发回滚的终态（terminal 
 - **幂等**：`event_key` 唯一标识一次操作，重复提交返回 `duplicate=True`
 - **因果链**：`correlation_id`（同一事务） / `causation_id`（因果关系）
 
-事件类型常量：`order_created` / `sp_created` / `sp_skipped` / `sp_status_changed` / `sp_rollback_started` / `sp_rollback_completed` / `sp_rollback_failed` / `order_completed` / `sp_timeout` / `conflict`
+事件类型常量：`stateflow:event:order_created` / `stateflow:event:sp_created` / `stateflow:event:sp_skipped` / `stateflow:event:sp_status_changed` / `stateflow:event:sp_rollback_started` / `stateflow:event:sp_rollback_completed` / `stateflow:event:sp_rollback_failed` / `stateflow:event:order_completed` / `stateflow:event:sp_timeout` / `stateflow:event:conflict`（框架标签全部命名空间化，见 `.claude/rules/namespacing.md`）
 
 ### OrderOutbox
 
 副作用投递记录。将状态转换与外部调用解耦：
 
-- `topic`：投递目标（`handler_start` / `handler_rollback` / `notification` / `timer`）
+- `topic`：投递目标（`stateflow:topic:handler_start` / `stateflow:topic:handler_rollback` / `stateflow:topic:notification` / `stateflow:topic:timer`）
 - `status`：pending → processing → sent / failed / cancelled
 - `retry_count` / `next_retry_at`：重试控制
 - `payload`：投递数据（如 `{"subprocess_id": "..."}`）

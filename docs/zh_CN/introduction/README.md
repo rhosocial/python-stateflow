@@ -83,6 +83,7 @@ src/rhosocial/stateflow/
     ├── ticket_system.py      # 工单系统（并行 DAG）
     ├── task_orchestration.py # 任务编排（钻石 DAG + 超时/回滚）
     ├── agent_plan.py         # Agent 执行计划（失败补偿）
+    ├── ai_agent.py           # AI Agent 助手（运行时定义执行图）
     ├── media_generation.py   # 文生图/视频（积分冻结/退款）
     ├── seat_booking.py        # 固定座位订票（支付/出票）
     └── external_services.py   # 支付/积分协议 + Mock 实现

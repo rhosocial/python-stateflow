@@ -154,7 +154,7 @@ def test_publish_event_marks_order_completed_when_all_advance(backend_group, per
     service.publish_event(order_id=order_id, subprocess_id=shp.id, new_status="shipped")
 
     reloaded = Order.query().where(Order.c.id == order_id).one()
-    assert reloaded.status == "completed"
+    assert reloaded.status == "stateflow:order:completed"
     assert reloaded.completed_at is not None
 
 
